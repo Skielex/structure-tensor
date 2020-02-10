@@ -141,7 +141,7 @@ def eig_special_3d(S, full=False):
     # Reuse s allocation and delete s to ensure we don't efter it's been reused.
     p_inv = s
     del s
-    np.divide(1, p, out=p_inv)
+    np.divide(1, p, out=p_inv, where=p != 0)
 
     # Compute B. First part is already filled.
     B03 *= p_inv
