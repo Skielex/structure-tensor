@@ -120,7 +120,10 @@ def eig_special_3d(S, full=False):
     B5 = B36[2]
 
     # Compute q, mean of diagonal. We need to use q multiple times later.
-    q = np.mean(S[:3], axis=0, out=tmp[0])
+    # Using np.mean has precision issues.
+    q = np.add(S[0], S[1], out=tmp[0])
+    q += S[2]
+    q /= 3
 
     # Compute S minus q. Insert it directly into B where it'll stay.
     Sq = np.subtract(S[:3], q, out=B03)
@@ -141,6 +144,7 @@ def eig_special_3d(S, full=False):
     # Reuse s allocation and delete s to ensure we don't efter it's been reused.
     p_inv = s
     del s
+    p_inv[:] = 0
     np.divide(1, p, out=p_inv, where=p != 0)
 
     # Compute B. First part is already filled.
