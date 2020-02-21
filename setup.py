@@ -12,6 +12,7 @@ setup(name="structure-tensor",
       long_description_content_type="text/markdown",
       url="",
       packages=["structure_tensor"],
+      install_requires=['numpy', 'scipy'],
       classifiers=[
           "Development Status :: 3 - Alpha",
           "Environment :: Console",
