@@ -84,7 +84,7 @@ def eig_special_3d(S, full=False):
         order polynomial. See https://en.wikipedia.org/wiki/Eigenvalue_algorithm
         which refers to Smith's algorithm https://dl.acm.org/citation.cfm?id=366316.
 
-    Author: vand@dtu.dk, 2019; niejep@dtu.dk, 2019-2020
+    Authors: vand@dtu.dk, 2019; niejep@dtu.dk, 2019-2020
     """
 
     # Check data type. Must be floating point.

@@ -67,7 +67,7 @@ def eig_special_2d(S):
             An array with shape (2, ...) containing eigenvector corresponding
             to the smallest eigenvalue (the other is orthogonal to the first).
 
-    Author:
+    Authors:
         vand@dtu.dk, 2019; niejep@dtu.dk, 2020
     """
 
@@ -97,7 +97,7 @@ def eig_special_2d(S):
     aligned = S[2] == 0
 
     # Sort.
-    vec[:, aligned] = 1 - np.argsort(S[0:2, aligned], axis=0)
+    vec[:, aligned] = 1 - np.argsort(S[:2, aligned], axis=0)
 
     # Normalize.
     vec_norm = np.einsum('ij,ij->j', vec, vec)
