@@ -43,27 +43,8 @@ S = structure_tensor_3d(volume, sigma, rho)
 val, vec = eig_special_3d(S)
 ```
 
-### 2D and 3D using CuPy
+### 3D using CuPy
 CuPy functions are available in the ```structure_tensor.cp``` module. They work similar to their NumPy counterparts, except that they return ```cupy.ndarray```s. The functions will automatically handle moving input data if necessary.
-
-``` python
-import cupy as cp
-import numpy as np
-from structure_tensor.cp import eig_special_2d, structure_tensor_2d
-
-sigma = 1.5
-rho = 5.5
-
-# Load 2D data.
-image = np.random.random((128, 128))
-
-S = structure_tensor_3d(image, sigma, rho)
-val, vec = eig_special_3d(S)
-
-# Convert from cupy to numpy. Moves data from GPU to CPU.
-val = cp.asnumpy(val)
-vec = cp.asnumpy(vec)
-```
 
 ``` python
 import cupy as cp
