@@ -5,14 +5,18 @@ with open("README.md", "r") as fh:
 
 setup(name="structure-tensor",
       version="0.1.0",
-      author="Vedrana Andersen Dahl, Niels Jeppesen",
-      author_email="vand@dtu.dk, niejep@dtu.dk",
+      author="Niels Jeppesen",
+      author_email="niejep@dtu.dk",
       description="Structure tensor for Python",
       long_description=long_description,
       long_description_content_type="text/markdown",
       url="",
-      packages=["structure_tensor"],
-      install_requires=['numpy', 'scipy'],
+      packages=[
+          "structure_tensor",
+          "structure_tensor.cp",
+      ],
+      install_requires=["numpy", "scipy"],
+      extras_require={"CuPy": ["cupy"]},
       classifiers=[
           "Development Status :: 3 - Alpha",
           "Environment :: Console",
