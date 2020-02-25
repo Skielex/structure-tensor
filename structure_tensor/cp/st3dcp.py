@@ -1,7 +1,9 @@
-"""3D structure tensor module."""
+"""3D structure tensor module using CuPy."""
 
-import numpy as np
-from scipy.ndimage import filters
+import cupy as np
+import cupyx as cp
+
+from . import filters
 
 
 def structure_tensor_3d(volume, sigma, rho, out=None):
@@ -9,18 +11,18 @@ def structure_tensor_3d(volume, sigma, rho, out=None):
 
     Arguments:
         volume: array_like
-            A 3D array. Pass ndarray to avoid copying volume.
+            A 3D array. Pass cupy.ndarray to avoid copying volume.
         sigma: scalar
             A noise scale, structures smaller than sigma will be removed by smoothing.
         rho: scalar
             An integration scale giving the size over the neighborhood in which the
             orientation is to be analysed.
-        out: ndarray, optional
-            A Numpy array with the shape (6, volume.shape) in which to place the output.
+        out: cupy.ndarray, optional
+            An array with the shape ``(6, volume.shape)`` in which to place the output.
 
     Returns:
-        S: ndarray
-            An array with shape (6, volume.shape) containing elements of structure tensor
+        S: cupy.ndarray
+            An array with shape ``(6, volume.shape)`` containing elements of structure tensor
             (s_xx, s_yy, s_zz, s_xy, s_xz, s_yz).
 
     Authors: vand@dtu.dk, 2019; niejep@dtu.dk, 2019-2020
@@ -63,19 +65,19 @@ def eig_special_3d(S, full=False):
     """Eigensolution for symmetric real 3-by-3 matrices.
 
     Arguments:
-        S: ndarray
-            A floating point array with shape (6, ...) containing structure tensor.
+        S: array-like
+            A floating point array with shape ``(6, ...)`` containing structure tensor.
             Use float64 to avoid numerical errors. When using lower precision, ensure
-            that the values of S are not very small/large.
+            that the values of S are not very small/large. Pass cupy.ndarray to avoid copying S.
         full: bool, optional
             A flag indicating that all three eigenvalues should be returned.
 
     Returns:
-        val: ndarray
-            An array with shape (3, ...) containing sorted eigenvalues
-        vec: ndarray
-            An array with shape (3, ...) containing eigenvector corresponding to
-            the smallest eigenvalue. If full, vec has shape (3, 3, ...) and contains
+        val: cupy.ndarray
+            An array with shape ``(3, ...)`` containing sorted eigenvalues
+        vec: cupy.ndarray
+            An array with shape ``(3, ...)`` containing eigenvector corresponding to
+            the smallest eigenvalue. If full, vec has shape ``(3, 3, ...)`` and contains
             all three eigenvectors.
 
     More:
@@ -133,11 +135,11 @@ def eig_special_3d(S, full=False):
     Sq = np.subtract(S[:3], q, out=B03)
 
     # Compute s, off-diagonal elements. Store in part of B not yet used.
-    s = np.einsum('ij,ij->j', S[3:], S[3:], out=tmp[1])
+    s = np.sum(np.multiply(S[3:], S[3:], out=B36), axis=0, out=tmp[1])
     s *= 2
 
     # Compute p.
-    p = np.einsum('ij,ij->j', Sq, Sq, out=tmp[2])
+    p = np.sum(np.multiply(Sq, Sq, out=B36), axis=0, out=tmp[2])
     del Sq  # Last use of Sq.
     p += s
 
@@ -148,8 +150,9 @@ def eig_special_3d(S, full=False):
     # Reuse s allocation and delete s to ensure we don't efter it's been reused.
     p_inv = s
     del s
-    p_inv[:] = 0
-    np.divide(1, p, out=p_inv, where=p != 0)
+    non_zero_p_mask = p == 0
+    np.divide(1, p, out=p_inv)
+    p_inv[non_zero_p_mask] = 0
 
     # Compute B. First part is already filled.
     B03 *= p_inv
@@ -245,13 +248,13 @@ def eig_special_3d(S, full=False):
     # Normalizing -- depends on number of vectors.
     if full:
         # vec is [x1 x2 x3, y1 y2 y3, z1 z2 z3]
-        l = np.einsum('ijk,ijk->jk', vec, vec, out=vec_tmp)
+        l = np.sum(np.square(vec), axis=0, out=vec_tmp)
         vec = np.swapaxes(vec, 0, 1)
     else:
         # vec is [x1 y1 z1] = v1
-        l = np.einsum('ij,ij->j', vec, vec, out=vec_tmp)
+        l = np.sum(np.square(vec, out=tmp[:3]), axis=0, out=vec_tmp)
 
-    np.sqrt(l, out=l)
-    vec /= l
+    cp.rsqrt(l, out=l)
+    vec *= l
 
     return val.reshape(val.shape[:-1] + input_shape[1:]), vec.reshape(vec.shape[:-1] + input_shape[1:])
