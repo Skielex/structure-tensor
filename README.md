@@ -23,8 +23,8 @@ rho = 5.5
 # Load 2D data.
 image = np.random.random((128, 128))
 
-S = structure_tensor_3d(image, sigma, rho)
-val, vec = eig_special_3d(S)
+S = structure_tensor_2d(image, sigma, rho)
+val, vec = eig_special_2d(S)
 ```
 
 For volume with shape ```(x, y, z)``` the eigenvectors (```vec```) are returned as ```zyx```.
