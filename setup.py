@@ -15,6 +15,7 @@ setup(name="structure-tensor",
           "structure_tensor",
           "structure_tensor.cp",
       ],
+      python_requires='>=3',
       install_requires=["numpy", "scipy"],
       extras_require={"CuPy": ["cupy"]},
       classifiers=[
