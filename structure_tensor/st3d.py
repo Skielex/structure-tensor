@@ -245,7 +245,7 @@ def eig_special_3d(S, full=False):
     # Normalizing -- depends on number of vectors.
     if full:
         # vec is [x1 x2 x3, y1 y2 y3, z1 z2 z3]
-        l = np.einsum('ijk,ijk->jk', vec, vec, out=vec_tmp)
+        l = np.einsum('ijk,ijk->jk', vec, vec, out=vec_tmp)[:, np.newaxis]
         vec = np.swapaxes(vec, 0, 1)
     else:
         # vec is [x1 y1 z1] = v1
