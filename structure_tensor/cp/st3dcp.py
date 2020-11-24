@@ -2,8 +2,7 @@
 
 import cupy as np
 import cupyx as cp
-
-from . import filters
+from cupyx.scipy.ndimage import filters
 
 
 def structure_tensor_3d(volume, sigma, rho, out=None):
