@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name="structure-tensor",
-      version="0.1.1",
+      version="0.1.2",
       author="Niels Jeppesen",
       author_email="niejep@dtu.dk",
       description="Fast and simple to use 2D and 3D structure tensor implementation for Python.",
