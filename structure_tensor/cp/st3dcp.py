@@ -33,6 +33,10 @@ def structure_tensor_3d(volume, sigma, rho, out=None, truncate=4.0):
     # Make sure it's a CuPy array.
     volume = np.asarray(volume)
 
+    # Check data type. Must be floating point.
+    if not np.issubdtype(volume.dtype, np.floating):
+        logging.warning('volume is not floating type array. This may result in a loss of precision and unexpected behavior.')    
+
     # Computing derivatives (scipy implementation truncates filter at 4 sigma).
     Vx = filters.gaussian_filter(volume, sigma, order=[0, 0, 1], mode='nearest', truncate=truncate)
     Vy = filters.gaussian_filter(volume, sigma, order=[0, 1, 0], mode='nearest', truncate=truncate)

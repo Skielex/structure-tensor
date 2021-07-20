@@ -1,4 +1,5 @@
 """2D structure tensor module."""
+import logging
 
 import numpy as np
 from scipy import ndimage
@@ -31,6 +32,10 @@ def structure_tensor_2d(image, sigma, rho, out=None, truncate=4.0):
 
     # Make sure it's a Numpy array.
     image = np.asarray(image)
+
+    # Check data type. Must be floating point.
+    if not np.issubdtype(image.dtype, np.floating):
+        logging.warning('image is not floating type array. This may result in a loss of precision and unexpected behavior.') 
 
     # Compute derivatives (Scipy implementation truncates filter at 4 sigma).
     Ix = ndimage.gaussian_filter(image, sigma, order=[1, 0], mode='nearest', truncate=truncate)
