@@ -1,5 +1,4 @@
-from typing import Tuple
-
+"""Utilities module."""
 import numpy as np
 
 
