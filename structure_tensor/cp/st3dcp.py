@@ -1,11 +1,12 @@
 """3D structure tensor module using CuPy."""
+import logging
 
 import cupy as np
 import cupyx as cp
 from cupyx.scipy.ndimage import filters
 
 
-def structure_tensor_3d(volume, sigma, rho, out=None):
+def structure_tensor_3d(volume, sigma, rho, out=None, truncate=4.0):
     """Structure tensor for 3D image data.
 
     Arguments:
@@ -18,6 +19,8 @@ def structure_tensor_3d(volume, sigma, rho, out=None):
             orientation is to be analysed.
         out: cupy.ndarray, optional
             An array with the shape ``(6, volume.shape)`` in which to place the output.
+        truncate: float
+            Truncate the filter at this many standard deviations. Default is 4.0.
 
     Returns:
         S: cupy.ndarray
@@ -27,13 +30,13 @@ def structure_tensor_3d(volume, sigma, rho, out=None):
     Authors: vand@dtu.dk, 2019; niejep@dtu.dk, 2019-2020
     """
 
-    # Make sure it's a Numpy array.
+    # Make sure it's a CuPy array.
     volume = np.asarray(volume)
 
     # Computing derivatives (scipy implementation truncates filter at 4 sigma).
-    Vx = filters.gaussian_filter(volume, sigma, order=[0, 0, 1], mode='nearest')
-    Vy = filters.gaussian_filter(volume, sigma, order=[0, 1, 0], mode='nearest')
-    Vz = filters.gaussian_filter(volume, sigma, order=[1, 0, 0], mode='nearest')
+    Vx = filters.gaussian_filter(volume, sigma, order=[0, 0, 1], mode='nearest', truncate=truncate)
+    Vy = filters.gaussian_filter(volume, sigma, order=[0, 1, 0], mode='nearest', truncate=truncate)
+    Vz = filters.gaussian_filter(volume, sigma, order=[1, 0, 0], mode='nearest', truncate=truncate)
 
     if out is None:
         # Allocate S.
@@ -45,17 +48,17 @@ def structure_tensor_3d(volume, sigma, rho, out=None):
     # Integrating elements of structure tensor (scipy uses sequence of 1D).
     tmp = np.empty(volume.shape, dtype=volume.dtype)
     np.multiply(Vx, Vx, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[0])
+    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[0], truncate=truncate)
     np.multiply(Vy, Vy, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[1])
+    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[1], truncate=truncate)
     np.multiply(Vz, Vz, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[2])
+    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[2], truncate=truncate)
     np.multiply(Vx, Vy, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[3])
+    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[3], truncate=truncate)
     np.multiply(Vx, Vz, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[4])
+    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[4], truncate=truncate)
     np.multiply(Vy, Vz, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[5])
+    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[5], truncate=truncate)
 
     return S
 
