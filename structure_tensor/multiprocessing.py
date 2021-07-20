@@ -1,12 +1,21 @@
+import logging
 from multiprocessing import Pool, RawArray, cpu_count
 from types import SimpleNamespace
 
 import numpy as np
 
-from . import util, st3d
+from . import st3d, util
+
+try:
+    import cupy as cp
+    from .cp import st3dcp
+except Exception as ex:
+    cp = None
+    logging.warning("Could not load CuPy for structure tensor analysis: %s",
+                    str(ex))
 
 
-def structure_tensor_3d(
+def parallel_structure_tensor_analysis(
     volume,
     sigma,
     rho,
@@ -25,7 +34,7 @@ def structure_tensor_3d(
         # Copy data to shared memory array. This will double the memory usage
         volume_array = RawArray(np.ctypeslib.as_ctypes_type(volume.dtype),
                                 volume.size)
-        volume_array_np = np.frombuffer(volume_array, dtype=volume.dtype)
+        volume_array_np = np.frombuffer(volume_array, dtype=volume.dtype).reshape(volume.shape)
         volume_array_np[:] = volume
     else:
         raise ValueError(
@@ -85,7 +94,7 @@ def structure_tensor_3d(
               initargs=(init_args, )) as pool:
         for res in pool.imap_unordered(
                 do_work,
-                util.get_block_count(volume, block_size),
+                range(util.get_block_count(volume, block_size)),
                 chunksize=1,
         ):
             results.append(res)
@@ -97,6 +106,8 @@ param_dict = {}
 
 
 def init_worker(kwargs):
+    """Initialization function for worker."""
+
     for k in kwargs:
         if k == 'data_array' and kwargs[k] is not None:
             # Create ndarray from shared memory.
@@ -125,7 +136,35 @@ def init_worker(kwargs):
 
 
 def do_work(block_id):
+    """Worker function."""
+
     params = SimpleNamespace(**param_dict)
+
+    if isinstance(params.devices, list) or isinstance(params.devices, tuple):
+        # If more devices are provided select one.
+        devices = params.devices[block_id % len(params.devices)]
+        # Overwrite initial device value to prevent process changing device on next iteration.
+        param_dict['devices'] = devices
+
+    if cp is not None and isinstance(devices,
+                                     str) and devices.startswith('cuda'):
+
+        split = devices.split(':')
+        if len(split) > 1:
+            # Overwrite initial device value to prevent process changing device on next iteration.
+            param_dict['devices'] = split[0]
+
+            # CUDA device ID specified. Use that device.
+            device_id = int(split[1])
+            cp.cuda.Device(device_id).use()
+
+        # Use CuPy.
+        st = st3dcp
+        lib = cp
+    else:
+        # Use NumPy.
+        st = st3d
+        lib = np
 
     block, pos, pad = util.get_block(
         block_id,
@@ -136,7 +175,7 @@ def do_work(block_id):
         copy=False,
     )
 
-    S = st3d.structure_tensor_3d(
+    S = st.structure_tensor_3d(
         block,
         sigma=params.sigma,
         rho=params.rho,
