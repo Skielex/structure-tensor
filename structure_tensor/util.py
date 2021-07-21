@@ -1,6 +1,11 @@
 """Utilities module."""
 import numpy as np
 
+try:
+    import cupy as cp
+except Exception as ex:
+    cp = None
+
 
 def get_block_count(data, block_size=512):
     """Gets the number of blocks that will be created for the given input."""
@@ -128,6 +133,12 @@ def insert_block(volume, block, pos, pad=None, mask=None):
 
     view = volume[..., pos[0, 0]:pos[0, 1], pos[1, 0]:pos[1, 1],
                   pos[2, 0]:pos[2, 1]]
+
+    if cp is not None and isinstance(view, np.ndarray) and isinstance(
+            block, cp.ndarray):
+        # Move block from GPU to CPU.
+        block = block.get()
+
     if mask is None:
         view[:] = block
     else:
