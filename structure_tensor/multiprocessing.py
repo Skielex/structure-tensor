@@ -54,10 +54,7 @@ def parallel_structure_tensor_analysis(
         logging.info(
             f'Volume data provided as {str(volume.dtype)} numpy.ndarray with shape {volume.shape} occupying {volume.nbytes:,} bytes.'
         )
-        volume_array = RawArray(
-            np.ctypeslib.as_ctypes_type(volume.dtype),
-            volume.size,
-        )
+        volume_array = RawArray('b', volume.nbytes)
         volume_array_np = np.frombuffer(
             volume_array,
             dtype=volume.dtype,
@@ -80,8 +77,9 @@ def parallel_structure_tensor_analysis(
         if structure_tensor_path is None:
             # If no path is set, create shared memory array.
             structure_tensor_array = RawArray(
-                np.ctypeslib.as_ctypes_type(structure_tensor_dtype),
-                np.prod(structure_tensor_shape).item())
+                'b',
+                np.prod(structure_tensor_shape).item() *
+                np.dtype(structure_tensor_dtype).itemsize)
             a = np.frombuffer(
                 structure_tensor_array,
                 dtype=structure_tensor_dtype,
@@ -114,8 +112,9 @@ def parallel_structure_tensor_analysis(
         if eigenvectors_path is None:
             # If no path is set, create shared memory array.
             eigenvectors_array = RawArray(
-                np.ctypeslib.as_ctypes_type(eigenvectors_dtype),
-                np.prod(eigenvectors_shape).item())
+                'b',
+                np.prod(eigenvectors_shape).item() *
+                np.dtype(eigenvectors_dtype).itemsize)
             a = np.frombuffer(
                 eigenvectors_array,
                 dtype=eigenvectors_dtype).reshape(eigenvectors_shape)
@@ -148,8 +147,9 @@ def parallel_structure_tensor_analysis(
 
         if eigenvalues_path is None:
             eigenvalues_array = RawArray(
-                np.ctypeslib.as_ctypes_type(eigenvalues_dtype),
-                np.prod(eigenvalues_shape).item())
+                'b',
+                np.prod(eigenvalues_shape).item() *
+                np.dtype(eigenvalues_dtype).itemsize)
             a = np.frombuffer(
                 eigenvalues_array,
                 dtype=eigenvalues_dtype).reshape(eigenvalues_shape)
