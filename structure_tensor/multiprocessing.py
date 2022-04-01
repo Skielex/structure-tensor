@@ -338,7 +338,7 @@ def do_work(block_id):
         util.insert_block(params.structure_tensor, S, pos, pad)
 
     # Calculate eigenvectors and values.
-    vec, val = st.eig_special_3d(S, full=params.include_all_eigenvalues)
+    val, vec = st.eig_special_3d(S, full=params.include_all_eigenvalues)
 
     if params.eigenvectors is not None:
         # Insert vectors if relevant.
