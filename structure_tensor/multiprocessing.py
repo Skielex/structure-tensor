@@ -247,10 +247,11 @@ def init_worker(kwargs):
         if k == 'data_array' and kwargs[k] is not None:
             # Create ndarray from shared memory.
             shared_array = kwargs['data_array']
-            param_dict['data'] = np.frombuffer(
-                shared_array.buf,
+            param_dict['data'] = np.ndarray(
+                buffer=shared_array.buf,
                 dtype=kwargs['data_dtype'],
-            ).reshape(kwargs['data_shape'])
+                shape=kwargs['data_shape'],
+            )
         elif k == 'data_path' and kwargs[k] is not None:
             # Open read-only memmap.
             param_dict['data'] = np.memmap(kwargs['data_path'],
@@ -262,10 +263,11 @@ def init_worker(kwargs):
             if d['array'] is not None:
                 # Create ndarray from shared memory.
                 shared_array = d['array']
-                param_dict[k] = np.frombuffer(
-                    shared_array.buf,
+                param_dict[k] = np.ndarray(
+                    buffer=shared_array.buf,
                     dtype=d['dtype'],
-                ).reshape(d['shape'])
+                    shape=d['shape'],
+                )
             elif d['path'] is not None:
                 # Open read/write memmap.
                 param_dict[k] = np.memmap(d['path'],
