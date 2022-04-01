@@ -1,6 +1,7 @@
 import logging
 from multiprocessing import Pool, cpu_count, managers, shared_memory
 from types import SimpleNamespace
+from typing import Callable
 
 import numpy as np
 
@@ -31,6 +32,7 @@ def parallel_structure_tensor_analysis(
     block_size=128,
     include_all_eigenvalues=False,
     devices=None,
+    progress_callback_fn=None,
 ):
 
     # Check that at least one output is specified.
@@ -230,6 +232,8 @@ def parallel_structure_tensor_analysis(
                 count += 1
                 logging.info(f'Block {res} complete ({count}/{block_count}).')
                 results.append(res)
+                if isinstance(progress_callback_fn, Callable):
+                    progress_callback_fn(count, block_count)
 
     # Return output as tuple.
     return tuple(output)
