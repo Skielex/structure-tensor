@@ -78,4 +78,31 @@ Contributions are welcome, just create an [issue](https://github.com/Skielex/str
 MIT License (see LICENSE file).
 
 ## Reference
+If you use this any of this for academic work, please consider citing our work.
+
+### Papers
+> Jeppesen, N., et al. "Characterization of the fiber orientations in non-crimp glass fiber reinforced composites using structure tensor." *IOP Conference Series: Materials Science and Engineering.* Vol. 942. No. 1. IOP Publishing, 2020.<br>
+[ [paper](https://doi.org/10.1088/1757-899x/942/1/012037) ]
+[ [data and notebooks](https://doi.org/10.5281/zenodo.3877521) ]
+
+> Jeppesen, N., et al. "Quantifying effects of manufacturing methods on fiber orientation in unidirectional composites using structure tensor analysis." *Composites Part A: Applied Science and Manufacturing* 149 (2021): 106541.<br>
+[ [paper](https://doi.org/10.1016/j.compositesa.2021.106541) ]
+[ [data and notebooks](https://doi.org/10.5281/zenodo.4446498) ]
+
+>Auenhammer, Robert M., et al. "Robust numerical analysis of fibrous composites from X-ray computed tomography image data enabling low resolutions." Composites Science and Technology (2022): 109458.<br>
+[ [paper](https://doi.org/10.1016/j.compscitech.2022.109458) ]
+[ [data](https://doi.org/10.5281/zenodo.5774920) ]
+
+>Auenhammer, Robert M., et al. "X-ray computed tomography data structure tensor orientation mapping for finite element models—STXAE." Software Impacts 11 (2022): 100216.<br>
+[ [paper](https://doi.org/10.1016/j.simpa.2021.100216) ]
+
+### Data and notebooks
+>Jeppesen, N, Dahl, VA, Christensen, AN, Dahl, AB, & Mikkelsen, LP. (2020). Characterization of the Fiber Orientations in Non-Crimp Glass Fiber Reinforced Composites using Structure Tensor [Data set]. Zenodo. https://doi.org/10.5281/zenodo.3877522
+
+>Jeppesen, N, Mikkelsen, Lars P., Dahl, V.A., Nymark, A.N., & Dahl, A.B. (2021). Quantifying effects of manufacturing methods on fiber orientation in unidirectional composites using structure tensor analysis [Data set]. Zenodo. https://doi.org/10.5281/zenodo.4446499
+
+>Auenhammer, R.M., Jeppesen, N, Mikkelsen, Lars P., Dahl, V.A., Blinzler, B.J., & Asp, L.E. (2021). X-ray computed tomography aided engineering approach for non-crimp fabric reinforced composites [Data set] [Data set]. Zenodo. https://doi.org/10.5281/zenodo.5774920
+
+
+### CuPy
 See CuPy [reference section](https://github.com/cupy/cupy#reference).
