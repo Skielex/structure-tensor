@@ -89,11 +89,11 @@ If you use this any of this for academic work, please consider citing our work.
 [ [paper](https://doi.org/10.1016/j.compositesa.2021.106541) ]
 [ [data and notebooks](https://doi.org/10.5281/zenodo.4446498) ]
 
->Auenhammer, Robert M., et al. "Robust numerical analysis of fibrous composites from X-ray computed tomography image data enabling low resolutions." Composites Science and Technology (2022): 109458.<br>
+>Auenhammer, Robert M., et al. "Robust numerical analysis of fibrous composites from X-ray computed tomography image data enabling low resolutions." *Composites Science and Technology* (2022): 109458.<br>
 [ [paper](https://doi.org/10.1016/j.compscitech.2022.109458) ]
 [ [data](https://doi.org/10.5281/zenodo.5774920) ]
 
->Auenhammer, Robert M., et al. "X-ray computed tomography data structure tensor orientation mapping for finite element models—STXAE." Software Impacts 11 (2022): 100216.<br>
+>Auenhammer, Robert M., et al. "X-ray computed tomography data structure tensor orientation mapping for finite element models—STXAE." *Software Impacts* 11 (2022): 100216.<br>
 [ [paper](https://doi.org/10.1016/j.simpa.2021.100216) ]
 
 ### Data and notebooks
