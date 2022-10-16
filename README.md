@@ -97,15 +97,6 @@ The notebooks published in the [datasets](#data-and-notebooks) also contains exa
 ## Contributions
 Contributions are welcome, just create an [issue](https://github.com/Skielex/structure-tensor/issues) or a [PR](https://github.com/Skielex/structure-tensor/pulls).
 
-## More information
-- [Wikipedia - Structure tensor](https://en.wikipedia.org/wiki/Structure_tensor)
-- [NumPy](https://numpy.org/)
-- [SciPy](https://www.scipy.org/)
-- [CuPy](https://cupy.chainer.org/)
-
-## License
-MIT License (see LICENSE file).
-
 ## Reference
 If you use this any of this for academic work, please consider citing our work.
 
@@ -151,3 +142,12 @@ If you use this any of this for academic work, please consider citing our work.
 
 ### CuPy
 See CuPy [reference section](https://github.com/cupy/cupy#reference).
+
+## More information
+- [Wikipedia - Structure tensor](https://en.wikipedia.org/wiki/Structure_tensor)
+- [NumPy](https://numpy.org/)
+- [SciPy](https://www.scipy.org/)
+- [CuPy](https://cupy.chainer.org/)
+
+## License
+MIT License (see LICENSE file).
