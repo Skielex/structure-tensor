@@ -80,11 +80,27 @@ MIT License (see LICENSE file).
 ## Reference
 If you use this any of this for academic work, please consider citing our work.
 
-### Papers
+### Initial paper
 > Jeppesen, N., et al. "Characterization of the fiber orientations in non-crimp glass fiber reinforced composites using structure tensor." *IOP Conference Series: Materials Science and Engineering.* Vol. 942. No. 1. IOP Publishing, 2020.<br>
 [ [paper](https://doi.org/10.1088/1757-899x/942/1/012037) ]
 [ [data and notebooks](https://doi.org/10.5281/zenodo.3877521) ]
 
+``` bibtex
+@article{Jeppesen_2020,
+	doi = {10.1088/1757-899x/942/1/012037},
+	url = {https://doi.org/10.1088/1757-899x/942/1/012037},
+	year = 2020,
+	month = {oct},
+	publisher = {{IOP} Publishing},
+	volume = {942},
+	number = {1},
+	pages = {012037},
+	author = {N Jeppesen and V A Dahl and A N Christensen and A B Dahl and L P Mikkelsen},
+	title = {Characterization of the fiber orientations in non-crimp glass fiber reinforced composites using structure tensor},
+	journal = {{IOP} Conference Series: Materials Science and Engineering},
+}
+```
+### Other papers
 > Jeppesen, N., et al. "Quantifying effects of manufacturing methods on fiber orientation in unidirectional composites using structure tensor analysis." *Composites Part A: Applied Science and Manufacturing* 149 (2021): 106541.<br>
 [ [paper](https://doi.org/10.1016/j.compositesa.2021.106541) ]
 [ [data and notebooks](https://doi.org/10.5281/zenodo.4446498) ]
