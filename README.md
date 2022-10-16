@@ -65,6 +65,35 @@ val = cp.asnumpy(val)
 vec = cp.asnumpy(vec)
 ```
 
+## Advanced examples
+The `structure_tensor` module also contains functions for parallel "blocked" calculation of the structure tensor and eigendecomposition. The easiest approach is to use the built-in function `parallel_structure_tensor_analysis`. This allows the computations to be distributed across many CPUs and CUDA devices. This can speed up computations many times and has the added benefit of reducing memory usage during calculation.
+
+In the example below the volume `data` is split into blocks of size 200 cubed and the workload will be distributed across 16 CPUs. 
+``` python
+vec, val = parallel_structure_tensor_analysis(data, sigma, rho, devices=16*['cpu'], block_size=200)
+```
+Alternatively, if we have a CUDA enabled GPU available, we could use that instead.
+``` python
+vec, val = parallel_structure_tensor_analysis(data, sigma, rho, devices=['cuda'], block_size=200)
+```
+If the GPU has sufficient memory we could likely speed up the calculations by using several processes to feed the GPU.
+``` python
+vec, val = parallel_structure_tensor_analysis(data, sigma, rho, devices=4*['cuda'], block_size=200)
+```
+If we have four CUDA devices available, we could choose to use several specific devices, e.g., device 0 and 2.
+``` python
+vec, val = parallel_structure_tensor_analysis(data, sigma, rho, devices=4*['cuda:0'] + 4*['cuda:2'], block_size=200)
+```
+We could even choose to use a mix of CPU and GPU processes, e.g., four processes for GPU 0, two for GPU 2, and 8 processes runing the calculations on the CPU.
+``` python
+vec, val = parallel_structure_tensor_analysis(data, sigma, rho, devices=4*['cuda:0'] + 2*['cuda:2'] + 8*['cpu'], block_size=200)
+```
+
+The ideal block size depends on the `sigma` and `rho`, the devices, and the memory available for the devices. Usually values between 100 and 400 work well. **If you encounter out-of-memory errors, try reducing the block size and/or the number of processes.**
+
+### Other advanced use
+The notebooks published in the [datasets](#data-and-notebooks) also contains examples. The `StructureTensorFiberAnalysisDemo` [ [notebook](https://zenodo.org/record/3877522/files/StructureTensorFiberAnalysisDemo.ipynb?download=1) | [HTML](https://zenodo.org/record/3877522/files/StructureTensorFiberAnalysisDemo.html?download=1) ] and `StructureTensorFiberAnalysisAdvancedDemo` [ [notebook](https://zenodo.org/record/3877522/files/StructureTensorFiberAnalysisAdvancedDemo.ipynb?download=1) | [HTML](https://zenodo.org/record/3877522/files/StructureTensorFiberAnalysisAdvancedDemo.html?download=1) ] notebooks are a good starting point. **However, these notebooks were made before the `parallel_structure_tensor_analysis` function was added and therefore use their own [code](https://zenodo.org/record/3877522/files/structure_tensor_workers.py?download=1) for parallel ST computation.**
+
 ## Contributions
 Contributions are welcome, just create an [issue](https://github.com/Skielex/structure-tensor/issues) or a [PR](https://github.com/Skielex/structure-tensor/pulls).
 
