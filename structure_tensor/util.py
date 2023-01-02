@@ -136,6 +136,10 @@ def insert_block(volume, block, pos, pad=None, mask=None):
 
     if cp is not None and isinstance(view, np.ndarray) and isinstance(
             block, cp.ndarray):
+
+        if volume.dtype != block.dtype:
+            block = block.astype(volume.dtype)
+
         # Move block from GPU to CPU.
         block = block.get()
 
