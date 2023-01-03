@@ -2,7 +2,7 @@
 import logging
 
 import numpy as np
-from scipy.ndimage import filters
+from scipy import ndimage
 
 
 def structure_tensor_3d(volume, sigma, rho, out=None, truncate=4.0):
@@ -26,7 +26,7 @@ def structure_tensor_3d(volume, sigma, rho, out=None, truncate=4.0):
             An array with shape (6, volume.shape) containing elements of structure tensor
             (s_xx, s_yy, s_zz, s_xy, s_xz, s_yz).
 
-    Authors: vand@dtu.dk, 2019; niejep@dtu.dk, 2019-2020
+    Authors: vand@dtu.dk, 2019; niejep@dtu.dk, 2019-2022
     """
 
     # Make sure it's a Numpy array.
@@ -34,12 +34,13 @@ def structure_tensor_3d(volume, sigma, rho, out=None, truncate=4.0):
 
     # Check data type. Must be floating point.
     if not np.issubdtype(volume.dtype, np.floating):
-        logging.warning('volume is not floating type array. This may result in a loss of precision and unexpected behavior.')  
+        logging.warning(
+            'volume is not floating type array. This may result in a loss of precision and unexpected behavior.')
 
     # Computing derivatives (scipy implementation truncates filter at 4 sigma).
-    Vx = filters.gaussian_filter(volume, sigma, order=[0, 0, 1], mode='nearest', truncate=truncate)
-    Vy = filters.gaussian_filter(volume, sigma, order=[0, 1, 0], mode='nearest', truncate=truncate)
-    Vz = filters.gaussian_filter(volume, sigma, order=[1, 0, 0], mode='nearest', truncate=truncate)
+    Vx = ndimage.gaussian_filter(volume, sigma, order=[0, 0, 1], mode='nearest', truncate=truncate)
+    Vy = ndimage.gaussian_filter(volume, sigma, order=[0, 1, 0], mode='nearest', truncate=truncate)
+    Vz = ndimage.gaussian_filter(volume, sigma, order=[1, 0, 0], mode='nearest', truncate=truncate)
 
     if out is None:
         # Allocate S.
@@ -51,17 +52,17 @@ def structure_tensor_3d(volume, sigma, rho, out=None, truncate=4.0):
     # Integrating elements of structure tensor (scipy uses sequence of 1D).
     tmp = np.empty(volume.shape, dtype=volume.dtype)
     np.multiply(Vx, Vx, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[0], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[0], truncate=truncate)
     np.multiply(Vy, Vy, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[1], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[1], truncate=truncate)
     np.multiply(Vz, Vz, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[2], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[2], truncate=truncate)
     np.multiply(Vx, Vy, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[3], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[3], truncate=truncate)
     np.multiply(Vx, Vz, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[4], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[4], truncate=truncate)
     np.multiply(Vy, Vz, out=tmp)
-    filters.gaussian_filter(tmp, rho, mode='nearest', output=S[5], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[5], truncate=truncate)
 
     return S
 
@@ -152,7 +153,7 @@ def eig_special_3d(S, full=False):
     np.sqrt(p, out=p)
 
     # Compute inverse p, while avoiding 0 division.
-    # Reuse s allocation and delete s to ensure we don't efter it's been reused.
+    # Reuse s allocation and delete s variable.
     p_inv = s
     del s
     p_inv[:] = 0
