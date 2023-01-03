@@ -14,6 +14,10 @@ except Exception as ex:
     cp = None
     logging.warning("Could not load CuPy: %s", str(ex))
 
+logging.warning(
+    "The multiprocessing module is deprecated and will likely be removed in a future version. Please use the multithreading module instead."
+)
+
 
 def parallel_structure_tensor_analysis(
     volume,
@@ -62,8 +66,7 @@ def parallel_structure_tensor_analysis(
         volume_array_np[:] = volume
     else:
         raise ValueError(
-            f"Invalid type '{type(volume)}' for volume. Volume must be 'numpy.memmap' and 'numpy.ndarray'."
-        )
+            f"Invalid type '{type(volume)}' for volume. Volume must be 'numpy.memmap' and 'numpy.ndarray'.")
 
     # Create list for output.
     output = []
@@ -78,8 +81,7 @@ def parallel_structure_tensor_analysis(
             # If no path is set, create shared memory array.
             structure_tensor_array = RawArray(
                 'b',
-                np.prod(structure_tensor_shape).item() *
-                np.dtype(structure_tensor_dtype).itemsize)
+                np.prod(structure_tensor_shape).item() * np.dtype(structure_tensor_dtype).itemsize)
             a = np.frombuffer(
                 structure_tensor_array,
                 dtype=structure_tensor_dtype,
@@ -90,10 +92,7 @@ def parallel_structure_tensor_analysis(
             output.append(a)
         elif isinstance(structure_tensor_path, str):
             # If path is set, create memory map.
-            a = np.memmap(structure_tensor_path,
-                          dtype=structure_tensor_dtype,
-                          shape=structure_tensor_shape,
-                          mode='w+')
+            a = np.memmap(structure_tensor_path, dtype=structure_tensor_dtype, shape=structure_tensor_shape, mode='w+')
             logging.info(
                 f'Created memory map at "{eigenvalues_path}" for {str(a.dtype)} structure tensor data with shape {a.shape} occupying {a.nbytes:,} bytes.'
             )
@@ -111,78 +110,55 @@ def parallel_structure_tensor_analysis(
 
         if eigenvectors_path is None:
             # If no path is set, create shared memory array.
-            eigenvectors_array = RawArray(
-                'b',
-                np.prod(eigenvectors_shape).item() *
-                np.dtype(eigenvectors_dtype).itemsize)
-            a = np.frombuffer(
-                eigenvectors_array,
-                dtype=eigenvectors_dtype).reshape(eigenvectors_shape)
+            eigenvectors_array = RawArray('b',
+                                          np.prod(eigenvectors_shape).item() * np.dtype(eigenvectors_dtype).itemsize)
+            a = np.frombuffer(eigenvectors_array, dtype=eigenvectors_dtype).reshape(eigenvectors_shape)
             logging.info(
                 f'Created shared memory array for {str(a.dtype)} eigenvectors with shape {a.shape} occupying {a.nbytes:,} bytes.'
             )
             output.append(a)
         elif isinstance(eigenvectors_path, str):
             # If path is set, create memory map.
-            a = np.memmap(eigenvectors_path,
-                          dtype=eigenvectors_dtype,
-                          shape=eigenvectors_shape,
-                          mode='w+')
+            a = np.memmap(eigenvectors_path, dtype=eigenvectors_dtype, shape=eigenvectors_shape, mode='w+')
             logging.info(
                 f'Created memory map at "{eigenvalues_path}" for {str(a.dtype)} eigenvectors with shape {a.shape} occupying {a.nbytes:,} bytes.'
             )
             output.append(a)
         else:
             raise ValueError(
-                f"Invalid type '{type(eigenvectors_path)}' for eigenvector_path. Volume must be 'str' or None."
-            )
+                f"Invalid type '{type(eigenvectors_path)}' for eigenvector_path. Volume must be 'str' or None.")
 
     # Eigenvalue output.
     eigenvalues_shape = None
     eigenvalues_array = None
     if eigenvalues:
-        eigenvalues_shape = (
-            3, 3) + volume.shape if include_all_eigenvalues else (
-                3, ) + volume.shape
+        eigenvalues_shape = (3, 3) + volume.shape if include_all_eigenvalues else (3, ) + volume.shape
 
         if eigenvalues_path is None:
-            eigenvalues_array = RawArray(
-                'b',
-                np.prod(eigenvalues_shape).item() *
-                np.dtype(eigenvalues_dtype).itemsize)
-            a = np.frombuffer(
-                eigenvalues_array,
-                dtype=eigenvalues_dtype).reshape(eigenvalues_shape)
+            eigenvalues_array = RawArray('b', np.prod(eigenvalues_shape).item() * np.dtype(eigenvalues_dtype).itemsize)
+            a = np.frombuffer(eigenvalues_array, dtype=eigenvalues_dtype).reshape(eigenvalues_shape)
             logging.info(
                 f'Created shared memory array for {str(a.dtype)} eigenvalues with shape {a.shape} occupying {a.nbytes:,} bytes.'
             )
             output.append(a)
         elif isinstance(eigenvalues_path, str):
-            a = np.memmap(eigenvalues_path,
-                          dtype=eigenvalues_dtype,
-                          shape=eigenvalues_shape,
-                          mode='w+')
+            a = np.memmap(eigenvalues_path, dtype=eigenvalues_dtype, shape=eigenvalues_shape, mode='w+')
             logging.info(
                 f'Created memory map at "{eigenvalues_path}" for {str(a.dtype)} eigenvalues with shape {a.shape} occupying {a.nbytes:,} bytes.'
             )
             output.append(a)
         else:
             raise ValueError(
-                f"Invalid type '{type(eigenvalues_path)}' for eigenvalues_path. Volume must be 'str' or None."
-            )
+                f"Invalid type '{type(eigenvalues_path)}' for eigenvalues_path. Volume must be 'str' or None.")
 
     # Check devices.
     if devices is None:
         # Use all CPUs.
         devices = ['cpu'] * cpu_count()
-    elif all(
-            isinstance(d, str) and (d.lower() == 'cpu' or 'cuda:' in d.lower())
-            for d in devices):
+    elif all(isinstance(d, str) and (d.lower() == 'cpu' or 'cuda:' in d.lower()) for d in devices):
         pass
     else:
-        raise ValueError(
-            "Invalid devices. Should be a list of 'cpu' or 'cuda:X', where X is the CUDA device number."
-        )
+        raise ValueError("Invalid devices. Should be a list of 'cpu' or 'cuda:X', where X is the CUDA device number.")
     # As list.
     devices = list(devices)
 
@@ -222,9 +198,7 @@ def parallel_structure_tensor_analysis(
     count = 0
     results = []
     logging.info(f'Volume partitioned into {block_count} blocks.')
-    with Pool(processes=len(devices),
-              initializer=init_worker,
-              initargs=(init_args, )) as pool:
+    with Pool(processes=len(devices), initializer=init_worker, initargs=(init_args, )) as pool:
         for res in pool.imap_unordered(
                 do_work,
                 range(block_count),
@@ -275,10 +249,7 @@ def init_worker(kwargs):
                 )
             elif d['path'] is not None:
                 # Open read/write memmap.
-                param_dict[k] = np.memmap(d['path'],
-                                          dtype=d['dtype'],
-                                          shape=d['shape'],
-                                          mode='r+')
+                param_dict[k] = np.memmap(d['path'], dtype=d['dtype'], shape=d['shape'], mode='r+')
         else:
             param_dict[k] = kwargs[k]
 
@@ -294,8 +265,7 @@ def do_work(block_id):
         # Overwrite initial device value to prevent process changing device on next iteration.
         param_dict['devices'] = params.devices
 
-    if cp is not None and isinstance(
-            params.devices, str) and params.devices.startswith('cuda'):
+    if cp is not None and isinstance(params.devices, str) and params.devices.startswith('cuda'):
 
         split = params.devices.split(':')
         if len(split) > 1:
