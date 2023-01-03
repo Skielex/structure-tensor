@@ -2,7 +2,7 @@ import logging
 import threading
 from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -22,44 +22,57 @@ def parallel_structure_tensor_analysis(
     volume: npt.NDArray[np.number],
     sigma: float,
     rho: float,
-    eigenvectors: Optional[npt.NDArray[np.number]] = None,
-    eigenvalues: Optional[npt.NDArray[np.number]] = None,
-    structure_tensor: Optional[npt.NDArray[np.number]] = None,
+    eigenvectors: Optional[npt.NDArray[np.number] | bool] = True,
+    eigenvalues: Optional[npt.NDArray[np.number] | bool] = True,
+    structure_tensor: Optional[npt.NDArray[np.number] | bool] = None,
     truncate: float = 4.0,
     block_size: int = 128,
     include_all_eigenvalues: bool = False,
     devices: Optional[Sequence[str]] = None,
     progress_callback_fn: Optional[Callable] = None,
-):
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
 
     # Check devices.
     if devices is None:
         # Use all CPUs.
         devices = ['cpu'] * cpu_count()
-    elif all(
-            isinstance(d, str) and (d.lower() == 'cpu' or 'cuda' in d.lower())
-            for d in devices):
+    elif all(isinstance(d, str) and (d.lower() == 'cpu' or 'cuda' in d.lower()) for d in devices):
         pass
     else:
-        raise ValueError(
-            "Invalid devices. Should be a list of 'cpu' or 'cuda:X', where X is the CUDA device number."
-        )
+        raise ValueError("Invalid devices. Should be a list of 'cpu' or 'cuda:X', where X is the CUDA device number.")
 
     # Devices as list.
     devices = list(devices)[::-1]
 
     if cp is None:
-        non_cuda_devices = [
-            d for d in devices if not d.lower().startswith('cuda')
-        ]
+        non_cuda_devices = [d for d in devices if not d.lower().startswith('cuda')]
         if len(non_cuda_devices) != len(devices):
             devices = non_cuda_devices
-            logging.warning(
-                'CuPy could not be loaded. Ignoring specified CUDA devices.')
+            logging.warning('CuPy could not be loaded. Ignoring specified CUDA devices.')
 
         # Check if devices is not empty.
         if not devices:
             raise ValueError("No valid devices specified.")
+
+    result = []
+
+    if isinstance(eigenvectors, bool):
+        eigenvectors = np.empty((3, ) + volume.shape, dtype=volume.dtype) if eigenvectors else None
+
+    if isinstance(eigenvalues, bool):
+        if eigenvalues:
+            if include_all_eigenvalues:
+                eigenvalues = np.empty((3, 3) + volume.shape, dtype=volume.dtype)
+            else:
+                eigenvalues = np.empty((3, ) + volume.shape, dtype=volume.dtype)
+        else:
+            eigenvalues = None
+    if isinstance(structure_tensor, bool):
+        structure_tensor = np.empty((6, ) + volume.shape, dtype=volume.dtype) if structure_tensor else None
+
+    result.append(eigenvectors)
+    result.append(eigenvalues)
+    result.append(structure_tensor)
 
     # Create block memory views.
     blocks, positions, paddings = util.get_blocks(
@@ -100,8 +113,7 @@ def parallel_structure_tensor_analysis(
                 chunksize=1,
         ):
             count += 1
-            logging.info(
-                f'Thread {thread_id} completed block ({count}/{block_count}).')
+            logging.info(f'Thread {thread_id} completed block ({count}/{block_count}).')
             if isinstance(progress_callback_fn, Callable):
                 progress_callback_fn(count, block_count)
             cuda_devices.add(device_id)
@@ -115,6 +127,8 @@ def parallel_structure_tensor_analysis(
                     pinned_mempool = cp.get_default_pinned_memory_pool()
                     mempool.free_all_blocks()
                     pinned_mempool.free_all_blocks()
+
+    return tuple(result)
 
 
 def _do_work(args):
