@@ -56,23 +56,25 @@ def parallel_structure_tensor_analysis(
 
     result = []
 
+    dtype = volume.dtype if np.issubdtype(volume.dtype, np.floating) else np.float32
+
     if isinstance(eigenvectors, bool):
-        eigenvectors = np.empty((3, ) + volume.shape, dtype=volume.dtype) if eigenvectors else None
+        eigenvectors = np.empty((3, ) + volume.shape, dtype=dtype) if eigenvectors else None
 
     if isinstance(eigenvalues, bool):
         if eigenvalues:
             if include_all_eigenvalues:
-                eigenvalues = np.empty((3, 3) + volume.shape, dtype=volume.dtype)
+                eigenvalues = np.empty((3, 3) + volume.shape, dtype=dtype)
             else:
-                eigenvalues = np.empty((3, ) + volume.shape, dtype=volume.dtype)
+                eigenvalues = np.empty((3, ) + volume.shape, dtype=dtype)
         else:
             eigenvalues = None
     if isinstance(structure_tensor, bool):
-        structure_tensor = np.empty((6, ) + volume.shape, dtype=volume.dtype) if structure_tensor else None
+        structure_tensor = np.empty((6, ) + volume.shape, dtype=dtype) if structure_tensor else None
 
+    result.append(structure_tensor)
     result.append(eigenvectors)
     result.append(eigenvalues)
-    result.append(structure_tensor)
 
     # Create block memory views.
     blocks, positions, paddings = util.get_blocks(
