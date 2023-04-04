@@ -78,7 +78,7 @@ def parallel_structure_tensor_analysis(
             # If no path is set, create shared memory array.
             structure_tensor_array = RawArray(
                 'b',
-                np.prod(structure_tensor_shape, datatype=np.int64).item() *
+                np.prod(structure_tensor_shape, dtype=np.int64).item() *
                 np.dtype(structure_tensor_dtype).itemsize)
             a = np.frombuffer(
                 structure_tensor_array,
