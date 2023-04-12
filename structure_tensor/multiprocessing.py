@@ -78,7 +78,7 @@ def parallel_structure_tensor_analysis(
             # If no path is set, create shared memory array.
             structure_tensor_array = RawArray(
                 'b',
-                np.prod(structure_tensor_shape).item() *
+                np.prod(structure_tensor_shape, dtype=np.int64).item() *
                 np.dtype(structure_tensor_dtype).itemsize)
             a = np.frombuffer(
                 structure_tensor_array,
@@ -113,7 +113,7 @@ def parallel_structure_tensor_analysis(
             # If no path is set, create shared memory array.
             eigenvectors_array = RawArray(
                 'b',
-                np.prod(eigenvectors_shape).item() *
+                np.prod(eigenvectors_shape, dtype=np.int64).item() *
                 np.dtype(eigenvectors_dtype).itemsize)
             a = np.frombuffer(
                 eigenvectors_array,
@@ -148,7 +148,7 @@ def parallel_structure_tensor_analysis(
         if eigenvalues_path is None:
             eigenvalues_array = RawArray(
                 'b',
-                np.prod(eigenvalues_shape).item() *
+                np.prod(eigenvalues_shape, dtype=np.int64).item() *
                 np.dtype(eigenvalues_dtype).itemsize)
             a = np.frombuffer(
                 eigenvalues_array,
