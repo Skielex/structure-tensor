@@ -81,7 +81,7 @@ def parallel_structure_tensor_analysis(
             # If no path is set, create shared memory array.
             structure_tensor_array = RawArray(
                 'b',
-                np.prod(structure_tensor_shape).item() * np.dtype(structure_tensor_dtype).itemsize)
+                np.prod(structure_tensor_shape, dtype=np.int64).item() * np.dtype(structure_tensor_dtype).itemsize)
             a = np.frombuffer(
                 structure_tensor_array,
                 dtype=structure_tensor_dtype,
@@ -110,8 +110,9 @@ def parallel_structure_tensor_analysis(
 
         if eigenvectors_path is None:
             # If no path is set, create shared memory array.
-            eigenvectors_array = RawArray('b',
-                                          np.prod(eigenvectors_shape).item() * np.dtype(eigenvectors_dtype).itemsize)
+            eigenvectors_array = RawArray(
+                'b',
+                np.prod(eigenvectors_shape, dtype=np.int64).item() * np.dtype(eigenvectors_dtype).itemsize)
             a = np.frombuffer(eigenvectors_array, dtype=eigenvectors_dtype).reshape(eigenvectors_shape)
             logging.info(
                 f'Created shared memory array for {str(a.dtype)} eigenvectors with shape {a.shape} occupying {a.nbytes:,} bytes.'
@@ -135,7 +136,9 @@ def parallel_structure_tensor_analysis(
         eigenvalues_shape = (3, 3) + volume.shape if include_all_eigenvalues else (3, ) + volume.shape
 
         if eigenvalues_path is None:
-            eigenvalues_array = RawArray('b', np.prod(eigenvalues_shape).item() * np.dtype(eigenvalues_dtype).itemsize)
+            eigenvalues_array = RawArray(
+                'b',
+                np.prod(eigenvalues_shape, dtype=np.int64).item() * np.dtype(eigenvalues_dtype).itemsize)
             a = np.frombuffer(eigenvalues_array, dtype=eigenvalues_dtype).reshape(eigenvalues_shape)
             logging.info(
                 f'Created shared memory array for {str(a.dtype)} eigenvalues with shape {a.shape} occupying {a.nbytes:,} bytes.'
