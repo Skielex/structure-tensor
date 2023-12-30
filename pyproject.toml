@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools"]
+
+[project]
+name = "structure-tensor"
+requires-python = ">=3.8"
+version = "0.3.0"
+authors = [{ name = "Niels Jeppesen", email = "niejep@dtu.dk" }]
+description = "Fast and simple to use 2D and 3D structure tensor implementation for Python."
+readme = "README.md"
+license = "MIT"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = ["numpy>=1.20", "scipy>=1.3"]
+
+[project.urls]
+Homepage = "https://github.com/Skielex/structure-tensor"
+
+[project.optional-dependencies]
+cupy = ["cupy>=8"]
+
+[tool.black]
+line-length = 120
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_gitignore = true
