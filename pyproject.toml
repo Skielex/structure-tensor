@@ -8,7 +8,7 @@ version = "0.3.0"
 authors = [{ name = "Niels Jeppesen", email = "niejep@dtu.dk" }]
 description = "Fast and simple to use 2D and 3D structure tensor implementation for Python."
 readme = "README.md"
-license = "MIT"
+license = { file = "LICENSE" }
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
