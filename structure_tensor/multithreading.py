@@ -53,8 +53,6 @@ def parallel_structure_tensor_analysis(
         if not devices:
             raise ValueError("No valid devices specified.")
 
-    result = []
-
     dtype = volume.dtype if np.issubdtype(volume.dtype, np.floating) else np.float32
 
     if isinstance(eigenvectors, bool):
@@ -70,10 +68,6 @@ def parallel_structure_tensor_analysis(
             eigenvalues = None
     if isinstance(structure_tensor, bool):
         structure_tensor = np.empty((6,) + volume.shape, dtype=dtype) if structure_tensor else None
-
-    result.append(structure_tensor)
-    result.append(eigenvectors)
-    result.append(eigenvalues)
 
     # Create block memory views.
     blocks, positions, paddings = util.get_blocks(
@@ -132,7 +126,7 @@ def parallel_structure_tensor_analysis(
                     mempool.free_all_blocks()
                     pinned_mempool.free_all_blocks()
 
-    return tuple(result)
+    return structure_tensor, eigenvectors, eigenvalues
 
 
 def _do_work(args):
@@ -158,7 +152,7 @@ def _do_work(args):
     device = thread_devices[thread_id]
     device_id = None
 
-    if cp is not None and device.startswith("cuda"):
+    if cp is not None and st3dcp is not None and device.startswith("cuda"):
         # Use CuPy.
         st = st3dcp
         lib = cp
