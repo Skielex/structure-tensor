@@ -36,16 +36,17 @@ def structure_tensor_3d(volume, sigma, rho, out=None, truncate=4.0):
     # Check data type. Must be floating point.
     if not np.issubdtype(volume.dtype, np.floating):
         logging.warning(
-            'volume is not floating type array. This may result in a loss of precision and unexpected behavior.')
+            "volume is not floating type array. This may result in a loss of precision and unexpected behavior."
+        )
 
     # Computing derivatives (scipy implementation truncates filter at 4 sigma).
-    Vx = ndimage.gaussian_filter(volume, sigma, order=[0, 0, 1], mode='nearest', truncate=truncate)
-    Vy = ndimage.gaussian_filter(volume, sigma, order=[0, 1, 0], mode='nearest', truncate=truncate)
-    Vz = ndimage.gaussian_filter(volume, sigma, order=[1, 0, 0], mode='nearest', truncate=truncate)
+    Vx = ndimage.gaussian_filter(volume, sigma, order=[0, 0, 1], mode="nearest", truncate=truncate)
+    Vy = ndimage.gaussian_filter(volume, sigma, order=[0, 1, 0], mode="nearest", truncate=truncate)
+    Vz = ndimage.gaussian_filter(volume, sigma, order=[1, 0, 0], mode="nearest", truncate=truncate)
 
     if out is None:
         # Allocate S.
-        S = np.empty((6, ) + volume.shape, dtype=volume.dtype)
+        S = np.empty((6,) + volume.shape, dtype=volume.dtype)
     else:
         # S is already allocated. We assume the size is correct.
         S = out
@@ -53,17 +54,17 @@ def structure_tensor_3d(volume, sigma, rho, out=None, truncate=4.0):
     # Integrating elements of structure tensor (scipy uses sequence of 1D).
     tmp = np.empty(volume.shape, dtype=volume.dtype)
     np.multiply(Vx, Vx, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[0], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[0], truncate=truncate)
     np.multiply(Vy, Vy, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[1], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[1], truncate=truncate)
     np.multiply(Vz, Vz, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[2], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[2], truncate=truncate)
     np.multiply(Vx, Vy, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[3], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[3], truncate=truncate)
     np.multiply(Vx, Vz, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[4], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[4], truncate=truncate)
     np.multiply(Vy, Vz, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[5], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[5], truncate=truncate)
 
     return S
 
@@ -99,7 +100,7 @@ def eig_special_3d(S, full=False):
 
     # Check data type. Must be floating point.
     if not np.issubdtype(S.dtype, np.floating):
-        raise ValueError('S must be floating point type.')
+        raise ValueError("S must be floating point type.")
 
     # Flatten S.
     input_shape = S.shape
@@ -112,15 +113,15 @@ def eig_special_3d(S, full=False):
 
     # Allocate vec and val. We will use them for intermediate computations as well.
     if full:
-        val = np.empty((3, ) + S.shape[1:], dtype=S.dtype)
-        vec = np.empty((9, ) + S.shape[1:], dtype=S.dtype)
-        tmp = np.empty((4, ) + S.shape[1:], dtype=S.dtype)
+        val = np.empty((3,) + S.shape[1:], dtype=S.dtype)
+        vec = np.empty((9,) + S.shape[1:], dtype=S.dtype)
+        tmp = np.empty((4,) + S.shape[1:], dtype=S.dtype)
         B03 = val
         B36 = vec[:3]
     else:
-        val = np.empty((3, ) + S.shape[1:], dtype=S.dtype)
-        vec = np.empty((3, ) + S.shape[1:], dtype=S.dtype)
-        tmp = np.empty((4, ) + S.shape[1:], dtype=S.dtype)
+        val = np.empty((3,) + S.shape[1:], dtype=S.dtype)
+        vec = np.empty((3,) + S.shape[1:], dtype=S.dtype)
+        tmp = np.empty((4,) + S.shape[1:], dtype=S.dtype)
         B03 = val
         B36 = vec
 

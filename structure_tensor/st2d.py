@@ -35,15 +35,17 @@ def structure_tensor_2d(image, sigma, rho, out=None, truncate=4.0):
 
     # Check data type. Must be floating point.
     if not np.issubdtype(image.dtype, np.floating):
-        logging.warning('image is not floating type array. This may result in a loss of precision and unexpected behavior.') 
+        logging.warning(
+            "image is not floating type array. This may result in a loss of precision and unexpected behavior."
+        )
 
     # Compute derivatives (Scipy implementation truncates filter at 4 sigma).
-    Ix = ndimage.gaussian_filter(image, sigma, order=[1, 0], mode='nearest', truncate=truncate)
-    Iy = ndimage.gaussian_filter(image, sigma, order=[0, 1], mode='nearest', truncate=truncate)
+    Ix = ndimage.gaussian_filter(image, sigma, order=[1, 0], mode="nearest", truncate=truncate)
+    Iy = ndimage.gaussian_filter(image, sigma, order=[0, 1], mode="nearest", truncate=truncate)
 
     if out is None:
         # Allocate S.
-        S = np.empty((3, ) + image.shape, dtype=image.dtype)
+        S = np.empty((3,) + image.shape, dtype=image.dtype)
     else:
         # S is already allocated. We assume the size is correct.
         S = out
@@ -51,11 +53,11 @@ def structure_tensor_2d(image, sigma, rho, out=None, truncate=4.0):
     # Integrate elements of structure tensor (Scipy uses sequence of 1D).
     tmp = np.empty(image.shape, dtype=image.dtype)
     np.multiply(Ix, Ix, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[0], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[0], truncate=truncate)
     np.multiply(Iy, Iy, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[1], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[1], truncate=truncate)
     np.multiply(Ix, Iy, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[2], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[2], truncate=truncate)
 
     return S
 
@@ -107,7 +109,7 @@ def eig_special_2d(S):
     vec[:, aligned] = 1 - np.argsort(S[:2, aligned], axis=0)
 
     # Normalize.
-    vec_norm = np.einsum('ij,ij->j', vec, vec)
+    vec_norm = np.einsum("ij,ij->j", vec, vec)
     np.sqrt(vec_norm, out=vec_norm)
     vec /= vec_norm
 

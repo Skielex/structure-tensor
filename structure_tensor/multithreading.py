@@ -31,12 +31,11 @@ def parallel_structure_tensor_analysis(
     devices: Optional[Sequence[str]] = None,
     progress_callback_fn: Optional[Callable] = None,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
-
     # Check devices.
     if devices is None:
         # Use all CPUs.
-        devices = ['cpu'] * cpu_count()
-    elif all(isinstance(d, str) and (d.lower() == 'cpu' or 'cuda' in d.lower()) for d in devices):
+        devices = ["cpu"] * cpu_count()
+    elif all(isinstance(d, str) and (d.lower() == "cpu" or "cuda" in d.lower()) for d in devices):
         pass
     else:
         raise ValueError("Invalid devices. Should be a list of 'cpu' or 'cuda:X', where X is the CUDA device number.")
@@ -45,10 +44,10 @@ def parallel_structure_tensor_analysis(
     devices = list(devices)[::-1]
 
     if cp is None:
-        non_cuda_devices = [d for d in devices if not d.lower().startswith('cuda')]
+        non_cuda_devices = [d for d in devices if not d.lower().startswith("cuda")]
         if len(non_cuda_devices) != len(devices):
             devices = non_cuda_devices
-            logging.warning('CuPy could not be loaded. Ignoring specified CUDA devices.')
+            logging.warning("CuPy could not be loaded. Ignoring specified CUDA devices.")
 
         # Check if devices is not empty.
         if not devices:
@@ -59,18 +58,18 @@ def parallel_structure_tensor_analysis(
     dtype = volume.dtype if np.issubdtype(volume.dtype, np.floating) else np.float32
 
     if isinstance(eigenvectors, bool):
-        eigenvectors = np.empty((3, ) + volume.shape, dtype=dtype) if eigenvectors else None
+        eigenvectors = np.empty((3,) + volume.shape, dtype=dtype) if eigenvectors else None
 
     if isinstance(eigenvalues, bool):
         if eigenvalues:
             if include_all_eigenvalues:
                 eigenvalues = np.empty((3, 3) + volume.shape, dtype=dtype)
             else:
-                eigenvalues = np.empty((3, ) + volume.shape, dtype=dtype)
+                eigenvalues = np.empty((3,) + volume.shape, dtype=dtype)
         else:
             eigenvalues = None
     if isinstance(structure_tensor, bool):
-        structure_tensor = np.empty((6, ) + volume.shape, dtype=dtype) if structure_tensor else None
+        structure_tensor = np.empty((6,) + volume.shape, dtype=dtype) if structure_tensor else None
 
     result.append(structure_tensor)
     result.append(eigenvectors)
@@ -85,7 +84,7 @@ def parallel_structure_tensor_analysis(
         copy=False,
     )
     block_count = len(blocks)
-    logging.info(f'Volume partitioned into {block_count} blocks.')
+    logging.info(f"Volume partitioned into {block_count} blocks.")
 
     if isinstance(progress_callback_fn, Callable):
         progress_callback_fn(0, block_count)
@@ -93,29 +92,32 @@ def parallel_structure_tensor_analysis(
     count = 0
     thread_devices = {}
 
-    pool_args = [(
-        (block, pos, pad),
-        devices,
-        thread_devices,
-        sigma,
-        rho,
-        truncate,
-        eigenvectors,
-        eigenvalues,
-        structure_tensor,
-        include_all_eigenvalues,
-    ) for block, pos, pad in zip(blocks, positions, paddings)]
+    pool_args = [
+        (
+            (block, pos, pad),
+            devices,
+            thread_devices,
+            sigma,
+            rho,
+            truncate,
+            eigenvectors,
+            eigenvalues,
+            structure_tensor,
+            include_all_eigenvalues,
+        )
+        for block, pos, pad in zip(blocks, positions, paddings)
+    ]
 
     cuda_devices = set()
 
     with ThreadPool(processes=len(devices)) as pool:
         for thread_id, device_id in pool.imap_unordered(
-                _do_work,
-                pool_args,
-                chunksize=1,
+            _do_work,
+            pool_args,
+            chunksize=1,
         ):
             count += 1
-            logging.info(f'Thread {thread_id} completed block ({count}/{block_count}).')
+            logging.info(f"Thread {thread_id} completed block ({count}/{block_count}).")
             if isinstance(progress_callback_fn, Callable):
                 progress_callback_fn(count, block_count)
             cuda_devices.add(device_id)
@@ -156,12 +158,12 @@ def _do_work(args):
     device = thread_devices[thread_id]
     device_id = None
 
-    if cp is not None and device.startswith('cuda'):
+    if cp is not None and device.startswith("cuda"):
         # Use CuPy.
         st = st3dcp
         lib = cp
 
-        split = device.split(':')
+        split = device.split(":")
         if len(split) > 1:
             # CUDA device ID specified. Use that device.
             device_id = int(split[1])
@@ -172,7 +174,7 @@ def _do_work(args):
         st = st3d
         lib = np
 
-    if cp is not None and device.startswith('cuda'):
+    if cp is not None and device.startswith("cuda"):
         with cp.cuda.Device(device_id):
             _do_work_innner(lib, st, args)
     else:
@@ -182,7 +184,6 @@ def _do_work(args):
 
 
 def _do_work_innner(lib, st, args):
-
     (
         (block, pos, pad),
         devices,

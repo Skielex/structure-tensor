@@ -1,8 +1,8 @@
 import unittest
 
 import numpy as np
-from structure_tensor import (eig_special_2d, eig_special_3d,
-                              structure_tensor_2d, structure_tensor_3d, util)
+
+from structure_tensor import eig_special_2d, eig_special_3d, structure_tensor_2d, structure_tensor_3d, util
 
 
 class TestStructureTensor(unittest.TestCase):
@@ -25,7 +25,8 @@ class TestStructureTensor(unittest.TestCase):
         """Can't test CuPy on machine without CUDA."""
         try:
             from structure_tensor.cp import eig_special_3d, structure_tensor_3d
-            self.assertTrue(True, 'CuPy available')
+
+            self.assertTrue(True, "CuPy available")
         except Exception as ex:
             self.assertEqual(ex.msg, "No module named 'cupy'")
             return
@@ -55,16 +56,12 @@ class TestUtil(unittest.TestCase):
 
     def test_get_block_generator(self):
         """Test block generator function."""
-        for b, pos, pad in util.get_block_generator(self.volume, self.sigma,
-                                                    self.block_size,
-                                                    self.truncate):
+        for b, pos, pad in util.get_block_generator(self.volume, self.sigma, self.block_size, self.truncate):
             self.assert_block(b, pos, pad)
 
     def test_get_blocks(self):
         """Test blocks function."""
-        blocks, positions, paddings = util.get_blocks(self.volume, self.sigma,
-                                                      self.block_size,
-                                                      self.truncate)
+        blocks, positions, paddings = util.get_blocks(self.volume, self.sigma, self.block_size, self.truncate)
         self.assertEqual(len(blocks), len(positions))
         self.assertEqual(len(blocks), len(paddings))
         for b, pos, pad in zip(blocks, positions, paddings):
@@ -72,20 +69,16 @@ class TestUtil(unittest.TestCase):
 
     def test_get_block_count(self):
         """Test block count function."""
-        blocks, positions, paddings = util.get_blocks(self.volume, self.sigma,
-                                                      self.block_size,
-                                                      self.truncate)
+        blocks, positions, paddings = util.get_blocks(self.volume, self.sigma, self.block_size, self.truncate)
         block_count = util.get_block_count(self.volume, self.block_size)
         self.assertEqual(len(blocks), block_count)
 
     def test_get_block(self):
         """Test get ith block function."""
         for i, (b1, pos1, pad1) in enumerate(
-                util.get_block_generator(self.volume, self.sigma,
-                                         self.block_size, self.truncate)):
-
-            b2, pos2, pad2 = util.get_block(i, self.volume, self.sigma,
-                                            self.block_size, self.truncate)
+            util.get_block_generator(self.volume, self.sigma, self.block_size, self.truncate)
+        ):
+            b2, pos2, pad2 = util.get_block(i, self.volume, self.sigma, self.block_size, self.truncate)
 
             self.assert_block(b2, pos2, pad2)
 
@@ -95,39 +88,29 @@ class TestUtil(unittest.TestCase):
 
     def test_remove_padding(self):
         """Test the remove padding function."""
-        for b, pos, pad in util.get_block_generator(self.volume, self.sigma,
-                                                    self.block_size,
-                                                    self.truncate):
+        for b, pos, pad in util.get_block_generator(self.volume, self.sigma, self.block_size, self.truncate):
             b2 = util.remove_padding(b, pad)
             for i in range(len(pad)):
                 self.assertEqual(b.shape[i] - np.sum(pad[i]), b2.shape[i])
 
     def test_remove_boundary(self):
         """Test the remove boundary function."""
-        for b, pos, pad in util.get_block_generator(self.volume, self.sigma,
-                                                    self.block_size):
+        for b, pos, pad in util.get_block_generator(self.volume, self.sigma, self.block_size):
             b2 = util.remove_boundary(b, pad, self.sigma)
             for i in range(len(pad)):
-                self.assertEqual(
-                    b.shape[i] -
-                    np.sum(np.maximum(0, self.kernel_radius - pad[i])),
-                    b2.shape[i])
+                self.assertEqual(b.shape[i] - np.sum(np.maximum(0, self.kernel_radius - pad[i])), b2.shape[i])
 
     def test_insert_block(self):
         """Test the insert block function."""
         vol = np.zeros_like(self.volume)
-        for b, pos, pad in util.get_block_generator(self.volume, self.sigma,
-                                                    self.block_size,
-                                                    self.truncate):
+        for b, pos, pad in util.get_block_generator(self.volume, self.sigma, self.block_size, self.truncate):
             util.insert_block(vol, b, pos, pad)
 
         np.testing.assert_array_equal(self.volume, vol)
 
         positions_with_values = []
 
-        for b, pos, pad in util.get_block_generator(self.volume, self.sigma,
-                                                    self.block_size,
-                                                    self.truncate):
+        for b, pos, pad in util.get_block_generator(self.volume, self.sigma, self.block_size, self.truncate):
             b = util.remove_padding(b, pad)
 
             mask = np.zeros(b.shape, dtype=bool)
@@ -142,9 +125,8 @@ class TestUtil(unittest.TestCase):
         positions_with_values = np.asarray(positions_with_values)
         positions_with_values = tuple(positions_with_values.transpose())
 
-        np.testing.assert_array_equal(self.volume[positions_with_values],
-                                      vol[positions_with_values])
+        np.testing.assert_array_equal(self.volume[positions_with_values], vol[positions_with_values])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
