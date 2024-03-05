@@ -96,7 +96,7 @@ def parallel_structure_tensor_analysis(
     block_size: int = 128,
     include_all_eigenvalues: bool = False,
     devices: Sequence[str] | None = None,
-    progress_callback_fn: Callable | None = None,
+    progress_callback_fn: Callable[[int, int], None] | None = None,
 ) -> np.ndarray | tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
     # Check that at least one output is specified.
     if all(isinstance(output, bool) and not output for output in [eigenvectors, eigenvalues, structure_tensor]):

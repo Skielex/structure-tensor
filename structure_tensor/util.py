@@ -1,5 +1,9 @@
 """Utilities module."""
+
+from typing import Generator
+
 import numpy as np
+import numpy.typing as npt
 
 try:
     import cupy as cp
@@ -7,13 +11,20 @@ except Exception as ex:
     cp = None
 
 
-def get_block_count(data, block_size=512):
+def get_block_count(data: npt.NDArray, block_size: int = 512) -> int:
     """Gets the number of blocks that will be created for the given input."""
 
-    return np.prod(np.ceil(np.array(data.shape) / block_size).astype(int))
+    return np.prod(np.ceil(np.array(data.shape) / block_size).astype(int)).item()
 
 
-def get_block(i, data, sigma, block_size=512, truncate=4.0, copy=False):
+def get_block(
+    i: int,
+    data: npt.NDArray,
+    sigma: float,
+    block_size: int = 512,
+    truncate: float = 4.0,
+    copy: bool = False,
+) -> tuple[npt.NDArray, np.ndarray, np.ndarray]:
     """Gets the ith block."""
 
     kernel_radius = int(sigma * truncate + 0.5)
@@ -54,7 +65,13 @@ def get_block(i, data, sigma, block_size=512, truncate=4.0, copy=False):
     raise IndexError(f"Index {i} is out of bounds for {count} blocks.")
 
 
-def get_block_generator(data, sigma, block_size=512, truncate=4.0, copy=False):
+def get_block_generator(
+    data: npt.NDArray,
+    sigma: float,
+    block_size: int = 512,
+    truncate: float = 4.0,
+    copy: bool = False,
+) -> Generator[tuple[npt.NDArray, np.ndarray, np.ndarray], None, None]:
     """Gets a generator that yields a tuple with a block, block position and block padding."""
 
     kernel_radius = int(sigma * truncate + 0.5)
@@ -85,7 +102,13 @@ def get_block_generator(data, sigma, block_size=512, truncate=4.0, copy=False):
                 yield block, np.array(((x0, x1), (y0, y1), (z0, z1))), np.array(((cx0, cx1), (cy0, cy1), (cz0, cz1)))
 
 
-def get_blocks(data, sigma, block_size=512, truncate=4.0, copy=False):
+def get_blocks(
+    data: npt.NDArray,
+    sigma: float,
+    block_size: int = 512,
+    truncate: float = 4.0,
+    copy: bool = False,
+) -> tuple[list[npt.NDArray], np.ndarray, np.ndarray]:
     """Gets a tuple of blocks, block positions and block paddings."""
 
     blocks = []
@@ -100,7 +123,7 @@ def get_blocks(data, sigma, block_size=512, truncate=4.0, copy=False):
     return blocks, np.array(block_positions), np.array(block_paddings)
 
 
-def remove_padding(block, pad):
+def remove_padding(block: npt.NDArray, pad: npt.NDArray[np.integer]) -> npt.NDArray:
     """Slices away the block padding."""
 
     block = block[
@@ -112,7 +135,12 @@ def remove_padding(block, pad):
     return block
 
 
-def remove_boundary(block, pad, sigma, truncate=4.0):
+def remove_boundary(
+    block: npt.NDArray,
+    pad: npt.NDArray[np.integer],
+    sigma: float,
+    truncate: float = 4.0,
+) -> npt.NDArray:
     """Slices away the parts of the block affected by the boundary.
 
     The goal here is to remove parts of the block that would be affected by
@@ -130,7 +158,13 @@ def remove_boundary(block, pad, sigma, truncate=4.0):
     return block
 
 
-def insert_block(volume, block, pos, pad=None, mask=None):
+def insert_block(
+    volume: npt.NDArray,
+    block: npt.NDArray,
+    pos: npt.NDArray[np.integer],
+    pad: npt.NDArray[np.integer] | None = None,
+    mask: npt.NDArray[np.bool_] | None = None,
+):
     """Inserts a block into a volume at a specific position."""
 
     if pad is not None:
@@ -143,7 +177,7 @@ def insert_block(volume, block, pos, pad=None, mask=None):
             block = block.astype(volume.dtype)
 
         # Move block from GPU to CPU.
-        block = block.get()
+        block = cp.asnumpy(block)
 
     if mask is None:
         view[:] = block
