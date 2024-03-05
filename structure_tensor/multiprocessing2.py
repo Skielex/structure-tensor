@@ -25,7 +25,7 @@ logger.warning(
 
 
 @dataclass(frozen=True)
-class RawArrayArgs:
+class _RawArrayArgs:
     array: Any
     shape: tuple[int, ...]
     dtype: npt.DTypeLike
@@ -35,7 +35,7 @@ class RawArrayArgs:
 
 
 @dataclass(frozen=True)
-class MemoryMapArgs:
+class _MemoryMapArgs:
     path: str
     shape: tuple[int, ...]
     dtype: npt.DTypeLike
@@ -47,7 +47,7 @@ class MemoryMapArgs:
 
 
 @dataclass
-class DataSources:
+class _DataSources:
     data: np.ndarray | np.memmap
     structure_tensor: np.ndarray | np.memmap | None
     eigenvectors: np.ndarray | np.memmap | None
@@ -56,11 +56,11 @@ class DataSources:
 
 
 @dataclass(frozen=True)
-class InitArgs:
-    data_args: RawArrayArgs | MemoryMapArgs
-    structure_tensor_args: RawArrayArgs | MemoryMapArgs | None
-    eigenvectors_args: RawArrayArgs | MemoryMapArgs | None
-    eigenvalues_args: RawArrayArgs | MemoryMapArgs | None
+class _InitArgs:
+    data_args: _RawArrayArgs | _MemoryMapArgs
+    structure_tensor_args: _RawArrayArgs | _MemoryMapArgs | None
+    eigenvectors_args: _RawArrayArgs | _MemoryMapArgs | None
+    eigenvalues_args: _RawArrayArgs | _MemoryMapArgs | None
     rho: float
     sigma: float
     block_size: int
@@ -68,8 +68,8 @@ class InitArgs:
     include_all_eigenvalues: bool
     devices: SimpleQueue[str]
 
-    def get_data_sources(self) -> DataSources:
-        return DataSources(
+    def get_data_sources(self) -> _DataSources:
+        return _DataSources(
             data=self.data_args.get_array(),
             structure_tensor=self.structure_tensor_args.get_array() if self.structure_tensor_args is not None else None,
             eigenvectors=self.eigenvectors_args.get_array() if self.eigenvectors_args is not None else None,
@@ -109,7 +109,7 @@ def parallel_structure_tensor_analysis(
         logger.info(
             f"Volume data provided as {str(volume.dtype)} numpy.memmap with shape {volume.shape} occupying {volume.nbytes:,} bytes."
         )
-        data_args = MemoryMapArgs(
+        data_args = _MemoryMapArgs(
             path=volume.filename,
             shape=volume.shape,
             dtype=volume.dtype,
@@ -124,7 +124,7 @@ def parallel_structure_tensor_analysis(
         )
         volume_raw_array, volume_array = _create_raw_array(volume.shape, volume.dtype)
         volume_array[:] = volume
-        data_args = RawArrayArgs(
+        data_args = _RawArrayArgs(
             array=volume_raw_array,
             shape=volume.shape,
             dtype=volume.dtype,
@@ -145,14 +145,14 @@ def parallel_structure_tensor_analysis(
                 eigenvectors_shape,
                 eigenvectors_dtype,
             )
-            eigenvectors_args = RawArrayArgs(
+            eigenvectors_args = _RawArrayArgs(
                 array=eigenvectors_raw_array,
                 shape=eigenvectors_shape,
                 dtype=eigenvectors_dtype,
             )
     elif isinstance(eigenvectors, np.memmap):
         assert eigenvectors.filename is not None
-        eigenvectors_args = MemoryMapArgs(
+        eigenvectors_args = _MemoryMapArgs(
             path=eigenvectors.filename,
             shape=eigenvectors.shape,
             dtype=eigenvectors.dtype,
@@ -177,14 +177,14 @@ def parallel_structure_tensor_analysis(
                 eigenvalues_shape,
                 eigenvalues_dtype,
             )
-            eigenvalues_args = RawArrayArgs(
+            eigenvalues_args = _RawArrayArgs(
                 array=eigenvalues_raw_array,
                 shape=eigenvalues_shape,
                 dtype=eigenvalues_dtype,
             )
     elif isinstance(eigenvalues, np.memmap):
         assert eigenvalues.filename is not None
-        eigenvalues_args = MemoryMapArgs(
+        eigenvalues_args = _MemoryMapArgs(
             path=eigenvalues.filename,
             shape=eigenvalues.shape,
             dtype=eigenvalues.dtype,
@@ -205,14 +205,14 @@ def parallel_structure_tensor_analysis(
                 structure_tensor_shape,
                 structure_tensor_dtype,
             )
-            structure_tensor_args = RawArrayArgs(
+            structure_tensor_args = _RawArrayArgs(
                 array=structure_tensor_raw_array,
                 shape=structure_tensor_shape,
                 dtype=structure_tensor_dtype,
             )
     elif isinstance(structure_tensor, np.memmap):
         assert structure_tensor.filename is not None
-        structure_tensor_args = MemoryMapArgs(
+        structure_tensor_args = _MemoryMapArgs(
             path=structure_tensor.filename,
             shape=structure_tensor.shape,
             dtype=structure_tensor.dtype,
@@ -233,7 +233,7 @@ def parallel_structure_tensor_analysis(
     for device in devices:
         queue.put(device)
 
-    init_args = InitArgs(
+    init_args = _InitArgs(
         data_args=data_args,
         structure_tensor_args=structure_tensor_args,
         eigenvectors_args=eigenvectors_args,
@@ -250,9 +250,9 @@ def parallel_structure_tensor_analysis(
     count = 0
     results = []
     logger.info(f"Volume partitioned into {block_count} blocks.")
-    with Pool(processes=len(devices), initializer=init_worker, initargs=(init_args,)) as pool:
+    with Pool(processes=len(devices), initializer=_init_worker, initargs=(init_args,)) as pool:
         for res in pool.imap_unordered(
-            do_work,
+            _do_work,
             range(block_count),
             chunksize=1,
         ):
@@ -281,31 +281,31 @@ def parallel_structure_tensor_analysis(
         return output[0], output[1], output[2]
 
 
-worker_args: InitArgs | None = None
-data_sources: DataSources | None = None
+_worker_args: _InitArgs | None = None
+_data_sources: _DataSources | None = None
 
 
-def init_worker(init_args: InitArgs):
+def _init_worker(init_args: _InitArgs):
     """Initialization function for worker."""
 
-    global worker_args
-    global data_sources
+    global _worker_args
+    global _data_sources
 
-    worker_args = init_args
-    data_sources = init_args.get_data_sources()
+    _worker_args = init_args
+    _data_sources = init_args.get_data_sources()
 
 
-def do_work(block_id: int):
+def _do_work(block_id: int):
     """Worker function."""
 
-    if worker_args is None:
+    if _worker_args is None:
         raise ValueError("Worker not initialized.")
 
-    if data_sources is None:
+    if _data_sources is None:
         raise ValueError("Data sources not initialized.")
 
-    if cp is not None and data_sources.device.startswith("cuda"):
-        split = data_sources.device.split(":")
+    if cp is not None and _data_sources.device.startswith("cuda"):
+        split = _data_sources.device.split(":")
         if len(split) > 1:
             # CUDA device ID specified. Use that device.
             device_id = int(split[1])
@@ -322,10 +322,10 @@ def do_work(block_id: int):
     # Get block, positions and padding.
     block, pos, pad = util.get_block(
         block_id,
-        data_sources.data,
-        sigma=max(worker_args.sigma, worker_args.rho),
-        block_size=worker_args.block_size,
-        truncate=worker_args.truncate,
+        _data_sources.data,
+        sigma=max(_worker_args.sigma, _worker_args.rho),
+        block_size=_worker_args.block_size,
+        truncate=_worker_args.truncate,
         copy=False,
     )
 
@@ -335,27 +335,27 @@ def do_work(block_id: int):
     # Calculate structure tensor.
     S = st.structure_tensor_3d(
         block,
-        sigma=worker_args.sigma,
-        rho=worker_args.rho,
-        truncate=worker_args.truncate,
+        sigma=_worker_args.sigma,
+        rho=_worker_args.rho,
+        truncate=_worker_args.truncate,
     )
 
-    if data_sources.structure_tensor is not None:
+    if _data_sources.structure_tensor is not None:
         # Insert S if relevant.
-        util.insert_block(data_sources.structure_tensor, S, pos, pad)
+        util.insert_block(_data_sources.structure_tensor, S, pos, pad)
 
     # Calculate eigenvectors and values.
-    val, vec = st.eig_special_3d(S, full=worker_args.include_all_eigenvalues)
+    val, vec = st.eig_special_3d(S, full=_worker_args.include_all_eigenvalues)
 
-    if data_sources.eigenvectors is not None:
+    if _data_sources.eigenvectors is not None:
         # Insert vectors if relevant.
-        util.insert_block(data_sources.eigenvectors, vec, pos, pad)
+        util.insert_block(_data_sources.eigenvectors, vec, pos, pad)
 
-    if data_sources.eigenvalues is not None:
+    if _data_sources.eigenvalues is not None:
         # Flip so largest value is first.
         val = lib.flip(val, axis=0)
 
         # Insert values if relevant.
-        util.insert_block(data_sources.eigenvalues, val, pos, pad)
+        util.insert_block(_data_sources.eigenvalues, val, pos, pad)
 
     return block_id
