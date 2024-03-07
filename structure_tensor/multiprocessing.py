@@ -85,17 +85,18 @@ def parallel_structure_tensor_analysis(
     volume: np.ndarray | np.memmap,
     sigma: float,
     rho: float,
-    eigenvectors: np.memmap | bool = True,
-    eigenvalues: np.memmap | bool = True,
-    structure_tensor: np.memmap | bool = False,
+    eigenvectors: np.memmap | npt.DTypeLike | None = np.float32,
+    eigenvalues: np.memmap | npt.DTypeLike | None = np.float32,
+    structure_tensor: np.memmap | npt.DTypeLike | None = None,
     truncate: float = 4.0,
     block_size: int = 128,
     include_all_eigenvalues: bool = False,
     devices: Sequence[str] | None = None,
     progress_callback_fn: Callable[[int, int], None] | None = None,
 ) -> np.ndarray | tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+
     # Check that at least one output is specified.
-    if all(isinstance(output, bool) and not output for output in [eigenvectors, eigenvalues, structure_tensor]):
+    if all(output is None for output in [eigenvectors, eigenvalues, structure_tensor]):
         raise ValueError("At least one output must be specified.")
 
     # Handle input data.
@@ -134,18 +135,9 @@ def parallel_structure_tensor_analysis(
     eigenvectors_shape = (3,) + volume.shape
     eigenvectors_array = None
     eigenvectors_args = None
-    if isinstance(eigenvectors, bool):
-        if eigenvectors:
-            eigenvectors_dtype = np.float32
-            eigenvectors_raw_array, eigenvectors_array = _create_raw_array(
-                eigenvectors_shape,
-                eigenvectors_dtype,
-            )
-            eigenvectors_args = _RawArrayArgs(
-                array=eigenvectors_raw_array,
-                shape=eigenvectors_shape,
-                dtype=eigenvectors_dtype,
-            )
+
+    if eigenvectors is None:
+        pass
     elif isinstance(eigenvectors, np.memmap):
         assert eigenvectors.filename is not None
         eigenvectors_args = _MemoryMapArgs(
@@ -156,6 +148,17 @@ def parallel_structure_tensor_analysis(
             mode="r+",
         )
         eigenvectors_array = eigenvectors
+    else:
+        eigenvectors_dtype = eigenvectors
+        eigenvectors_raw_array, eigenvectors_array = _create_raw_array(
+            eigenvectors_shape,
+            eigenvectors_dtype,
+        )
+        eigenvectors_args = _RawArrayArgs(
+            array=eigenvectors_raw_array,
+            shape=eigenvectors_shape,
+            dtype=eigenvectors_dtype,
+        )
 
     assert eigenvectors_array is None or eigenvectors_shape == eigenvectors_array.shape
 
@@ -167,18 +170,9 @@ def parallel_structure_tensor_analysis(
 
     eigenvalues_array = None
     eigenvalues_args = None
-    if isinstance(eigenvalues, bool):
-        if eigenvalues:
-            eigenvalues_dtype = np.float32
-            eigenvalues_raw_array, eigenvalues_array = _create_raw_array(
-                eigenvalues_shape,
-                eigenvalues_dtype,
-            )
-            eigenvalues_args = _RawArrayArgs(
-                array=eigenvalues_raw_array,
-                shape=eigenvalues_shape,
-                dtype=eigenvalues_dtype,
-            )
+
+    if eigenvalues is None:
+        pass
     elif isinstance(eigenvalues, np.memmap):
         assert eigenvalues.filename is not None
         eigenvalues_args = _MemoryMapArgs(
@@ -189,6 +183,17 @@ def parallel_structure_tensor_analysis(
             mode="r+",
         )
         eigenvalues_array = eigenvalues
+    else:
+        eigenvalues_dtype = np.dtype(eigenvalues)
+        eigenvalues_raw_array, eigenvalues_array = _create_raw_array(
+            eigenvalues_shape,
+            eigenvalues_dtype,
+        )
+        eigenvalues_args = _RawArrayArgs(
+            array=eigenvalues_raw_array,
+            shape=eigenvalues_shape,
+            dtype=eigenvalues_dtype,
+        )
 
     assert eigenvalues_array is None or eigenvalues_shape == eigenvalues_array.shape
 
@@ -196,18 +201,9 @@ def parallel_structure_tensor_analysis(
     structure_tensor_shape = (6,) + volume.shape
     structure_tensor_array = None
     structure_tensor_args = None
-    if isinstance(structure_tensor, bool):
-        if structure_tensor:
-            structure_tensor_dtype = np.float32
-            structure_tensor_raw_array, structure_tensor_array = _create_raw_array(
-                structure_tensor_shape,
-                structure_tensor_dtype,
-            )
-            structure_tensor_args = _RawArrayArgs(
-                array=structure_tensor_raw_array,
-                shape=structure_tensor_shape,
-                dtype=structure_tensor_dtype,
-            )
+
+    if structure_tensor is None:
+        pass
     elif isinstance(structure_tensor, np.memmap):
         assert structure_tensor.filename is not None
         structure_tensor_args = _MemoryMapArgs(
@@ -218,6 +214,17 @@ def parallel_structure_tensor_analysis(
             mode="r+",
         )
         structure_tensor_array = structure_tensor
+    else:
+        structure_tensor_dtype = structure_tensor
+        structure_tensor_raw_array, structure_tensor_array = _create_raw_array(
+            structure_tensor_shape,
+            structure_tensor_dtype,
+        )
+        structure_tensor_args = _RawArrayArgs(
+            array=structure_tensor_raw_array,
+            shape=structure_tensor_shape,
+            dtype=structure_tensor_dtype,
+        )
 
     # Check devices.
     if devices is None:
