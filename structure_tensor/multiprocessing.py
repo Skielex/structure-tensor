@@ -16,12 +16,8 @@ try:
     from .cp import st3dcp
 except Exception as ex:
     cp = None
+    st3dcp = None
     logger.warning("Could not load CuPy: %s", str(ex))
-
-
-logger.warning(
-    "The multiprocessing module is deprecated and will likely be removed in a future version. Please use the multithreading module instead."
-)
 
 
 @dataclass(frozen=True)
@@ -66,7 +62,7 @@ class _InitArgs:
     block_size: int
     truncate: float
     include_all_eigenvalues: bool
-    devices: SimpleQueue[str]
+    devices: SimpleQueue
 
     def get_data_sources(self) -> _DataSources:
         return _DataSources(
@@ -79,7 +75,7 @@ class _InitArgs:
 
 
 def _create_raw_array(shape: tuple[int, ...], dtype: npt.DTypeLike) -> tuple[Any, np.ndarray]:
-    raw = RawArray("b", np.prod(shape, dtype=np.int64).item() * np.dtype(dtype).itemsize)
+    raw = RawArray("b", np.prod(np.asarray(shape), dtype=np.int64).item() * np.dtype(dtype).itemsize)
     a = np.frombuffer(raw, dtype=dtype).reshape(shape)
 
     return raw, a
@@ -159,6 +155,7 @@ def parallel_structure_tensor_analysis(
             offset=eigenvectors.offset,
             mode="r+",
         )
+        eigenvectors_array = eigenvectors
 
     assert eigenvectors_array is None or eigenvectors_shape == eigenvectors_array.shape
 
@@ -191,6 +188,7 @@ def parallel_structure_tensor_analysis(
             offset=eigenvalues.offset,
             mode="r+",
         )
+        eigenvalues_array = eigenvalues
 
     assert eigenvalues_array is None or eigenvalues_shape == eigenvalues_array.shape
 
@@ -219,6 +217,7 @@ def parallel_structure_tensor_analysis(
             offset=structure_tensor.offset,
             mode="r+",
         )
+        structure_tensor_array = structure_tensor
 
     # Check devices.
     if devices is None:
@@ -277,8 +276,10 @@ def parallel_structure_tensor_analysis(
         return output[0]
     elif len(output) == 2:
         return output[0], output[1]
-    else:
+    elif len(output) == 3:
         return output[0], output[1], output[2]
+
+    raise ValueError("No output generated.")
 
 
 _worker_args: _InitArgs | None = None
@@ -304,7 +305,7 @@ def _do_work(block_id: int):
     if _data_sources is None:
         raise ValueError("Data sources not initialized.")
 
-    if cp is not None and _data_sources.device.startswith("cuda"):
+    if cp is not None and st3dcp is not None and _data_sources.device.startswith("cuda"):
         split = _data_sources.device.split(":")
         if len(split) > 1:
             # CUDA device ID specified. Use that device.

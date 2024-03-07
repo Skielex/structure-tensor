@@ -177,7 +177,7 @@ def insert_block(
             block = block.astype(volume.dtype)
 
         # Move block from GPU to CPU.
-        block = cp.asnumpy(block)
+        block = cp.asnumpy(block.astype(view.dtype))
 
     if mask is None:
         view[:] = block
