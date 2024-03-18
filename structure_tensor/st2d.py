@@ -1,4 +1,5 @@
 """2D structure tensor module."""
+
 import logging
 
 import numpy as np
@@ -40,8 +41,8 @@ def structure_tensor_2d(image, sigma, rho, out=None, truncate=4.0):
         )
 
     # Compute derivatives (Scipy implementation truncates filter at 4 sigma).
-    Ix = ndimage.gaussian_filter(image, sigma, order=[1, 0], mode="nearest", truncate=truncate)
-    Iy = ndimage.gaussian_filter(image, sigma, order=[0, 1], mode="nearest", truncate=truncate)
+    Ix = ndimage.gaussian_filter(image, sigma, order=(1, 0), mode="nearest", truncate=truncate)  # type: ignore
+    Iy = ndimage.gaussian_filter(image, sigma, order=(0, 1), mode="nearest", truncate=truncate)  # type: ignore
 
     if out is None:
         # Allocate S.
@@ -77,7 +78,7 @@ def eig_special_2d(S):
             to the smallest eigenvalue (the other is orthogonal to the first).
 
     Authors:
-        vand@dtu.dk, 2019; niejep@dtu.dk, 2020
+        vand@dtu.dk, 2019; niejep@dtu.dk, 2020-2024
     """
 
     # Save original shape and flatten.

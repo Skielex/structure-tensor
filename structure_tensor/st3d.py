@@ -1,4 +1,5 @@
 """3D structure tensor module."""
+
 import logging
 
 import numpy as np
@@ -26,7 +27,7 @@ def structure_tensor_3d(volume, sigma, rho, out=None, truncate=4.0):
             An array with shape (6, volume.shape) containing elements of structure tensor
             (s_xx, s_yy, s_zz, s_xy, s_xz, s_yz).
 
-    Authors: vand@dtu.dk, 2019; niejep@dtu.dk, 2019-2022
+    Authors: vand@dtu.dk, 2019; niejep@dtu.dk, 2019-2024
     """
 
     # Make sure it's a Numpy array.

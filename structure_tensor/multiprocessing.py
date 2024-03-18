@@ -1,3 +1,5 @@
+"""Module for parallel structure tensor analysis using multi-processing."""
+
 import logging
 from dataclasses import dataclass
 from multiprocessing import Pool, RawArray, SimpleQueue, cpu_count
@@ -14,10 +16,12 @@ try:
     import cupy as cp
 
     from .cp import st3dcp
+
+    _cupy_import_error = None
 except Exception as ex:
     cp = None
     st3dcp = None
-    logger.warning("Could not load CuPy: %s", str(ex))
+    _cupy_import_error = ex
 
 
 @dataclass(frozen=True)
@@ -93,11 +97,18 @@ def parallel_structure_tensor_analysis(
     include_all_eigenvalues: bool = False,
     devices: Sequence[str] | None = None,
     progress_callback_fn: Callable[[int, int], None] | None = None,
+    fallback_to_cpu: bool = True,
 ) -> np.ndarray | tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     # Check that at least one output is specified.
     if all(output is None for output in [eigenvectors, eigenvalues, structure_tensor]):
         raise ValueError("At least one output must be specified.")
+
+    if devices and _cupy_import_error is not None and any("cuda:" in d.lower() for d in devices):
+        if fallback_to_cpu:
+            logger.warning("CuPy not available. Falling back to NumPy.")
+        else:
+            raise _cupy_import_error
 
     # Handle input data.
     if isinstance(volume, np.memmap):
