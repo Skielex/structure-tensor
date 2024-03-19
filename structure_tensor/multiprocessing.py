@@ -1,8 +1,10 @@
 """Module for parallel structure tensor analysis using multi-processing."""
 
 import logging
+import os
 from dataclasses import dataclass
 from multiprocessing import Pool, RawArray, SimpleQueue, cpu_count
+from multiprocessing.pool import ThreadPool
 from typing import Any, Callable, Literal, Sequence
 
 import numpy as np
@@ -22,6 +24,17 @@ except Exception as ex:
     cp = None
     st3dcp = None
     _cupy_import_error = ex
+
+
+DEFAULT_POOL_TYPE = "thread" if os.name == "nt" else "process"
+
+
+@dataclass(frozen=True)
+class _ArrayArgs:
+    array: np.ndarray
+
+    def get_array(self) -> np.ndarray:
+        return self.array
 
 
 @dataclass(frozen=True)
@@ -57,7 +70,7 @@ class _DataSources:
 
 @dataclass(frozen=True)
 class _InitArgs:
-    data_args: _RawArrayArgs | _MemoryMapArgs
+    data_args: _RawArrayArgs | _MemoryMapArgs | _ArrayArgs
     structure_tensor_args: _RawArrayArgs | _MemoryMapArgs | None
     eigenvectors_args: _RawArrayArgs | _MemoryMapArgs | None
     eigenvalues_args: _RawArrayArgs | _MemoryMapArgs | None
@@ -98,7 +111,14 @@ def parallel_structure_tensor_analysis(
     devices: Sequence[str] | None = None,
     progress_callback_fn: Callable[[int, int], None] | None = None,
     fallback_to_cpu: bool = True,
+    pool_type: Literal["process", "thread"] = DEFAULT_POOL_TYPE,
 ) -> np.ndarray | tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+    if pool_type not in ["process", "thread"]:
+        raise ValueError("Invalid pool type. Should be 'process' or 'thread'.")
+
+    use_process_pool = pool_type == "process"
+    copy_to_raw_array = use_process_pool and os.name == "nt"
 
     # Check that at least one output is specified.
     if all(output is None for output in [eigenvectors, eigenvalues, structure_tensor]):
@@ -130,13 +150,19 @@ def parallel_structure_tensor_analysis(
         logger.info(
             f"Volume data provided as {str(volume.dtype)} numpy.ndarray with shape {volume.shape} occupying {volume.nbytes:,} bytes."
         )
-        volume_raw_array, volume_array = _create_raw_array(volume.shape, volume.dtype)
-        volume_array[:] = volume
-        data_args = _RawArrayArgs(
-            array=volume_raw_array,
-            shape=volume.shape,
-            dtype=volume.dtype,
-        )
+        if copy_to_raw_array:
+            volume_raw_array, volume_array = _create_raw_array(volume.shape, volume.dtype)
+            volume_array[:] = volume
+            data_args = _RawArrayArgs(
+                array=volume_raw_array,
+                shape=volume.shape,
+                dtype=volume.dtype,
+            )
+        else:
+            data_args = _ArrayArgs(array=volume)
+    elif isinstance(volume, (np.ndarray, np.memmap)):
+        # If ndarray or memmap and using thread pool, use as is.
+        data_args = _ArrayArgs(array=volume)
     else:
         raise ValueError(
             f"Invalid type '{type(volume)}' for volume. Volume must be 'numpy.memmap' and 'numpy.ndarray'."
@@ -267,7 +293,8 @@ def parallel_structure_tensor_analysis(
     count = 0
     results = []
     logger.info(f"Volume partitioned into {block_count} blocks.")
-    with Pool(processes=len(devices), initializer=_init_worker, initargs=(init_args,)) as pool:
+    pool_ctor = Pool if use_process_pool else ThreadPool
+    with pool_ctor(processes=len(devices), initializer=_init_worker, initargs=(init_args,)) as pool:
         for res in pool.imap_unordered(
             _do_work,
             range(block_count),
