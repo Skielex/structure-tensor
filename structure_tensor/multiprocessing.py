@@ -398,9 +398,6 @@ def _do_work(block_id: int):
         util.insert_block(_data_sources.eigenvectors, vec, pos, pad)
 
     if _data_sources.eigenvalues is not None:
-        # Flip so largest value is first.
-        val = lib.flip(val, axis=0)
-
         # Insert values if relevant.
         util.insert_block(_data_sources.eigenvalues, val, pos, pad)
 
