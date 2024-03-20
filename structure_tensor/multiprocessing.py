@@ -79,6 +79,7 @@ class _InitArgs:
     block_size: int
     truncate: float
     include_all_eigenvalues: bool
+    eigenvalue_order: Literal["desc", "asc"]
     devices: SimpleQueue
 
     def get_data_sources(self) -> _DataSources:
@@ -108,6 +109,7 @@ def parallel_structure_tensor_analysis(
     truncate: float = 4.0,
     block_size: int = 128,
     include_all_eigenvalues: bool = False,
+    eigenvalue_order: Literal["desc", "asc"] = "desc",
     devices: Sequence[str] | None = None,
     progress_callback_fn: Callable[[int, int], None] | None = None,
     fallback_to_cpu: bool = True,
@@ -286,6 +288,7 @@ def parallel_structure_tensor_analysis(
         block_size=block_size,
         truncate=truncate,
         include_all_eigenvalues=include_all_eigenvalues,
+        eigenvalue_order=eigenvalue_order,
         devices=queue,
     )
 
@@ -391,7 +394,11 @@ def _do_work(block_id: int):
         util.insert_block(_data_sources.structure_tensor, S, pos, pad)
 
     # Calculate eigenvectors and values.
-    val, vec = st.eig_special_3d(S, full=_worker_args.include_all_eigenvalues)
+    val, vec = st.eig_special_3d(
+        S,
+        full=_worker_args.include_all_eigenvalues,
+        eigenvalue_order=_worker_args.eigenvalue_order,
+    )
 
     if _data_sources.eigenvectors is not None:
         # Insert vectors if relevant.
