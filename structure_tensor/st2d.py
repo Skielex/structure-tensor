@@ -1,33 +1,31 @@
 """2D structure tensor module."""
+
 import logging
 
 import numpy as np
+import numpy.typing as npt
 from scipy import ndimage
 
 
-def structure_tensor_2d(image, sigma, rho, out=None, truncate=4.0):
-    """Structure tensor for 2D image data.
+def structure_tensor_2d(
+    image: npt.ArrayLike,
+    sigma: float,
+    rho: float,
+    out: npt.NDArray | None = None,
+    truncate: float = 4.0,
+) -> npt.NDArray:
+    """Calculate the structure tensor for 2D image data.
 
-    Arguments:
-        image: array_like
-            A 2D array. Pass ndarray to avoid copying image.
-        sigma: scalar
-            A noise scale, structures smaller than sigma will be removed by smoothing.
-        rho: scalar
-            An integration scale giving the size over the neighborhood in which the
-            orientation is to be analysed.
-        out: ndarray, optinal
-            A Numpy array with the shape (3, volume.shape) in which to place the output.
-        truncate: float
-            Truncate the filter at this many standard deviations. Default is 4.0.
-
+    Args:
+        volume: A 2D array. Pass `numpy.ndarray` to avoid copying image.
+        sigma: A noise scale, structures smaller than sigma will be removed by smoothing.
+        rho: An integration scale giving the size over the neighborhood in which the orientation is to be analysed.
+        out: An array with the shape `(3, ...)` in which to place the output. If `None`, a new array is created.
+        truncate: Truncate the filter at this many standard deviations.
     Returns:
-        S: ndarray
-            An array with shape (3, image.shape) containing elements of structure tensor
-            (s_xx, s_yy, s_xy).
+        S: An array with shape `(3, ...)` containing elements of structure tensor `(s_xx, s_yy, s_xy)`.
 
-    Authors:
-        vand@dtu.dk, 2019; niejep@dtu.dk, 2020
+    Authors: vand@dtu.dk, 2019; niejep@dtu.dk, 2019-2024
     """
 
     # Make sure it's a Numpy array.
@@ -35,15 +33,17 @@ def structure_tensor_2d(image, sigma, rho, out=None, truncate=4.0):
 
     # Check data type. Must be floating point.
     if not np.issubdtype(image.dtype, np.floating):
-        logging.warning('image is not floating type array. This may result in a loss of precision and unexpected behavior.') 
+        logging.warning(
+            "image is not floating type array. This may result in a loss of precision and unexpected behavior."
+        )
 
     # Compute derivatives (Scipy implementation truncates filter at 4 sigma).
-    Ix = ndimage.gaussian_filter(image, sigma, order=[1, 0], mode='nearest', truncate=truncate)
-    Iy = ndimage.gaussian_filter(image, sigma, order=[0, 1], mode='nearest', truncate=truncate)
+    Ix = ndimage.gaussian_filter(image, sigma, order=(1, 0), mode="nearest", truncate=truncate)  # type: ignore
+    Iy = ndimage.gaussian_filter(image, sigma, order=(0, 1), mode="nearest", truncate=truncate)  # type: ignore
 
     if out is None:
         # Allocate S.
-        S = np.empty((3, ) + image.shape, dtype=image.dtype)
+        S = np.empty((3,) + image.shape, dtype=image.dtype)
     else:
         # S is already allocated. We assume the size is correct.
         S = out
@@ -51,34 +51,32 @@ def structure_tensor_2d(image, sigma, rho, out=None, truncate=4.0):
     # Integrate elements of structure tensor (Scipy uses sequence of 1D).
     tmp = np.empty(image.shape, dtype=image.dtype)
     np.multiply(Ix, Ix, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[0], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[0], truncate=truncate)
     np.multiply(Iy, Iy, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[1], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[1], truncate=truncate)
     np.multiply(Ix, Iy, out=tmp)
-    ndimage.gaussian_filter(tmp, rho, mode='nearest', output=S[2], truncate=truncate)
+    ndimage.gaussian_filter(tmp, rho, mode="nearest", output=S[2], truncate=truncate)
 
     return S
 
 
-def eig_special_2d(S):
+def eig_special_2d(S: npt.ArrayLike) -> tuple[npt.NDArray, npt.NDArray]:
     """Eigensolution for symmetric real 2-by-2 matrices.
 
-    Arguments:
-        S: ndarray
-            A floating point array with shape (3, ...) containing structure tensor.
+    Args:
+        S: A floating point array with shape (3, ...) containing structure tensor. Pass `numpy.ndarray` to avoid copying S.
 
     Returns:
-        val: ndarray
-            An array with shape (2, ...) containing sorted eigenvalues.
-        vec: ndarray
-            An array with shape (2, ...) containing eigenvector corresponding
-            to the smallest eigenvalue (the other is orthogonal to the first).
+        val: An array with shape (2, ...) containing sorted eigenvalues.
+        vec: An array with shape (2, ...) containing eigenvector corresponding to the smallest eigenvalue (the other is orthogonal to the first).
 
     Authors:
-        vand@dtu.dk, 2019; niejep@dtu.dk, 2020
+        vand@dtu.dk, 2019; niejep@dtu.dk, 2020-2024
     """
 
     # Save original shape and flatten.
+    S = np.asarray(S)
+
     input_shape = S.shape
     S = S.reshape(3, -1)
 
@@ -107,7 +105,7 @@ def eig_special_2d(S):
     vec[:, aligned] = 1 - np.argsort(S[:2, aligned], axis=0)
 
     # Normalize.
-    vec_norm = np.einsum('ij,ij->j', vec, vec)
+    vec_norm = np.einsum("ij,ij->j", vec, vec)
     np.sqrt(vec_norm, out=vec_norm)
     vec /= vec_norm
 

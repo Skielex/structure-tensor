@@ -1,307 +1,361 @@
+"""Module for parallel structure tensor analysis using multi-processing."""
+
 import logging
-from multiprocessing import Pool, RawArray, cpu_count
-from types import SimpleNamespace
-from typing import Callable
+import os
+from dataclasses import dataclass
+from multiprocessing import Pool, RawArray, SimpleQueue, cpu_count
+from multiprocessing.pool import ThreadPool
+from typing import Any, Callable, Literal, Sequence
 
 import numpy as np
+import numpy.typing as npt
 
 from . import st3d, util
 
+logger = logging.getLogger(__name__)
+
 try:
     import cupy as cp
+
     from .cp import st3dcp
+
+    _cupy_import_error = None
 except Exception as ex:
     cp = None
-    logging.warning("Could not load CuPy: %s", str(ex))
+    st3dcp = None
+    _cupy_import_error = ex
+
+
+DEFAULT_POOL_TYPE = "thread" if os.name == "nt" else "process"
+
+
+@dataclass(frozen=True)
+class _ArrayArgs:
+    array: np.ndarray
+
+    def get_array(self) -> np.ndarray:
+        return self.array
+
+
+@dataclass(frozen=True)
+class _RawArrayArgs:
+    array: Any
+    shape: tuple[int, ...]
+    dtype: npt.DTypeLike
+
+    def get_array(self) -> np.ndarray:
+        return np.frombuffer(self.array, dtype=self.dtype).reshape(self.shape)
+
+
+@dataclass(frozen=True)
+class _MemoryMapArgs:
+    path: str
+    shape: tuple[int, ...]
+    dtype: npt.DTypeLike
+    offset: int
+    mode: Literal["r", "r+"]
+
+    def get_array(self) -> np.memmap:
+        return np.memmap(self.path, dtype=self.dtype, shape=self.shape, mode=self.mode, offset=self.offset)
+
+
+@dataclass
+class _DataSources:
+    data: np.ndarray | np.memmap
+    structure_tensor: np.ndarray | np.memmap | None
+    eigenvectors: np.ndarray | np.memmap | None
+    eigenvalues: np.ndarray | np.memmap | None
+    device: str
+
+
+@dataclass(frozen=True)
+class _InitArgs:
+    data_args: _RawArrayArgs | _MemoryMapArgs | _ArrayArgs
+    structure_tensor_args: _RawArrayArgs | _MemoryMapArgs | None
+    eigenvectors_args: _RawArrayArgs | _MemoryMapArgs | None
+    eigenvalues_args: _RawArrayArgs | _MemoryMapArgs | None
+    rho: float
+    sigma: float
+    block_size: int
+    truncate: float
+    include_all_eigenvalues: bool
+    eigenvalue_order: Literal["desc", "asc"]
+    devices: SimpleQueue
+
+    def get_data_sources(self) -> _DataSources:
+        return _DataSources(
+            data=self.data_args.get_array(),
+            structure_tensor=self.structure_tensor_args.get_array() if self.structure_tensor_args is not None else None,
+            eigenvectors=self.eigenvectors_args.get_array() if self.eigenvectors_args is not None else None,
+            eigenvalues=self.eigenvalues_args.get_array() if self.eigenvalues_args is not None else None,
+            device=self.devices.get(),
+        )
+
+
+def _create_raw_array(shape: tuple[int, ...], dtype: npt.DTypeLike) -> tuple[Any, np.ndarray]:
+    raw = RawArray("b", np.prod(np.asarray(shape), dtype=np.int64).item() * np.dtype(dtype).itemsize)
+    a = np.frombuffer(raw, dtype=dtype).reshape(shape)
+
+    return raw, a
 
 
 def parallel_structure_tensor_analysis(
-    volume,
-    sigma,
-    rho,
-    eigenvectors=True,
-    eigenvectors_path=None,
-    eigenvectors_dtype=np.float32,
-    eigenvalues=True,
-    eigenvalues_path=None,
-    eigenvalues_dtype=np.float32,
-    structure_tensor=False,
-    structure_tensor_path=None,
-    structure_tensor_dtype=np.float32,
-    truncate=4.0,
-    block_size=128,
-    include_all_eigenvalues=False,
-    devices=None,
-    progress_callback_fn=None,
-):
+    volume: np.ndarray | np.memmap,
+    sigma: float,
+    rho: float,
+    eigenvectors: np.memmap | npt.DTypeLike | None = np.float32,
+    eigenvalues: np.memmap | npt.DTypeLike | None = np.float32,
+    structure_tensor: np.memmap | npt.DTypeLike | None = None,
+    truncate: float = 4.0,
+    block_size: int = 128,
+    include_all_eigenvalues: bool = False,
+    eigenvalue_order: Literal["desc", "asc"] = "desc",
+    devices: Sequence[str] | None = None,
+    progress_callback_fn: Callable[[int, int], None] | None = None,
+    fallback_to_cpu: bool = True,
+    pool_type: Literal["process", "thread"] = DEFAULT_POOL_TYPE,
+) -> np.ndarray | tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+    if pool_type not in ["process", "thread"]:
+        raise ValueError("Invalid pool type. Should be 'process' or 'thread'.")
+
+    use_process_pool = pool_type == "process"
+    copy_to_raw_array = use_process_pool and os.name == "nt"
 
     # Check that at least one output is specified.
-    if not any([eigenvectors, eigenvalues, structure_tensor]):
-        raise ValueError('At least one output must be specified.')
+    if all(output is None for output in [eigenvectors, eigenvalues, structure_tensor]):
+        raise ValueError("At least one output must be specified.")
+
+    if devices and _cupy_import_error is not None and any("cuda:" in d.lower() for d in devices):
+        if fallback_to_cpu:
+            logger.warning("CuPy not available. Falling back to NumPy.")
+        else:
+            raise _cupy_import_error
 
     # Handle input data.
-    data_path = None
-    volume_array = None
     if isinstance(volume, np.memmap):
         # If memory map, get file path.
-        logging.info(
-            f'Volume data provided as {str(volume.dtype)} numpy.memmap with shape {volume.shape} occupying {volume.nbytes:,} bytes.'
+        assert volume.filename is not None
+        logger.info(
+            f"Volume data provided as {str(volume.dtype)} numpy.memmap with shape {volume.shape} occupying {volume.nbytes:,} bytes."
         )
-        data_path = volume.filename
+        data_args = _MemoryMapArgs(
+            path=volume.filename,
+            shape=volume.shape,
+            dtype=volume.dtype,
+            offset=volume.offset,
+            mode="r",
+        )
     elif isinstance(volume, np.ndarray):
         # If ndarray, copy data to shared memory array. This will double the memory usage.
         # Shared memory can be access by all processes without having to be copied.
-        logging.info(
-            f'Volume data provided as {str(volume.dtype)} numpy.ndarray with shape {volume.shape} occupying {volume.nbytes:,} bytes.'
+        logger.info(
+            f"Volume data provided as {str(volume.dtype)} numpy.ndarray with shape {volume.shape} occupying {volume.nbytes:,} bytes."
         )
-        volume_array = RawArray('b', volume.nbytes)
-        volume_array_np = np.frombuffer(
-            volume_array,
-            dtype=volume.dtype,
-        ).reshape(volume.shape)
-        volume_array_np[:] = volume
+        if copy_to_raw_array:
+            volume_raw_array, volume_array = _create_raw_array(volume.shape, volume.dtype)
+            volume_array[:] = volume
+            data_args = _RawArrayArgs(
+                array=volume_raw_array,
+                shape=volume.shape,
+                dtype=volume.dtype,
+            )
+        else:
+            data_args = _ArrayArgs(array=volume)
+    elif isinstance(volume, (np.ndarray, np.memmap)):
+        # If ndarray or memmap and using thread pool, use as is.
+        data_args = _ArrayArgs(array=volume)
     else:
         raise ValueError(
             f"Invalid type '{type(volume)}' for volume. Volume must be 'numpy.memmap' and 'numpy.ndarray'."
         )
 
-    # Create list for output.
-    output = []
-
-    structure_tensor_shape = None
-    structure_tensor_array = None
-    # Structure tensor output.
-    if structure_tensor:
-        structure_tensor_shape = (6, ) + volume.shape
-
-        if structure_tensor_path is None:
-            # If no path is set, create shared memory array.
-            structure_tensor_array = RawArray(
-                'b',
-                np.prod(structure_tensor_shape, dtype=np.int64).item() *
-                np.dtype(structure_tensor_dtype).itemsize)
-            a = np.frombuffer(
-                structure_tensor_array,
-                dtype=structure_tensor_dtype,
-            ).reshape(structure_tensor_shape)
-            logging.info(
-                f'Created shared memory array for {str(a.dtype)} structure tensor data with shape {a.shape} occupying {a.nbytes:,} bytes.'
-            )
-            output.append(a)
-        elif isinstance(structure_tensor_path, str):
-            # If path is set, create memory map.
-            a = np.memmap(structure_tensor_path,
-                          dtype=structure_tensor_dtype,
-                          shape=structure_tensor_shape,
-                          mode='w+')
-            logging.info(
-                f'Created memory map at "{eigenvalues_path}" for {str(a.dtype)} structure tensor data with shape {a.shape} occupying {a.nbytes:,} bytes.'
-            )
-            output.append(a)
-        else:
-            raise ValueError(
-                f"Invalid type '{type(structure_tensor_path)}' for structure_tensor_path. Volume must be 'str' or None."
-            )
-
     # Eigenvector output.
-    eigenvectors_shape = None
+    eigenvectors_shape = (3,) + volume.shape
     eigenvectors_array = None
-    if eigenvectors:
-        eigenvectors_shape = (3, ) + volume.shape
+    eigenvectors_args = None
 
-        if eigenvectors_path is None:
-            # If no path is set, create shared memory array.
-            eigenvectors_array = RawArray(
-                'b',
-                np.prod(eigenvectors_shape, dtype=np.int64).item() *
-                np.dtype(eigenvectors_dtype).itemsize)
-            a = np.frombuffer(
-                eigenvectors_array,
-                dtype=eigenvectors_dtype).reshape(eigenvectors_shape)
-            logging.info(
-                f'Created shared memory array for {str(a.dtype)} eigenvectors with shape {a.shape} occupying {a.nbytes:,} bytes.'
-            )
-            output.append(a)
-        elif isinstance(eigenvectors_path, str):
-            # If path is set, create memory map.
-            a = np.memmap(eigenvectors_path,
-                          dtype=eigenvectors_dtype,
-                          shape=eigenvectors_shape,
-                          mode='w+')
-            logging.info(
-                f'Created memory map at "{eigenvalues_path}" for {str(a.dtype)} eigenvectors with shape {a.shape} occupying {a.nbytes:,} bytes.'
-            )
-            output.append(a)
-        else:
-            raise ValueError(
-                f"Invalid type '{type(eigenvectors_path)}' for eigenvector_path. Volume must be 'str' or None."
-            )
+    if eigenvectors is None:
+        pass
+    elif isinstance(eigenvectors, np.memmap):
+        assert eigenvectors.filename is not None
+        eigenvectors_args = _MemoryMapArgs(
+            path=eigenvectors.filename,
+            shape=eigenvectors.shape,
+            dtype=eigenvectors.dtype,
+            offset=eigenvectors.offset,
+            mode="r+",
+        )
+        eigenvectors_array = eigenvectors
+    else:
+        eigenvectors_dtype = eigenvectors
+        eigenvectors_raw_array, eigenvectors_array = _create_raw_array(
+            eigenvectors_shape,
+            eigenvectors_dtype,
+        )
+        eigenvectors_args = _RawArrayArgs(
+            array=eigenvectors_raw_array,
+            shape=eigenvectors_shape,
+            dtype=eigenvectors_dtype,
+        )
+
+    assert eigenvectors_array is None or eigenvectors_shape == eigenvectors_array.shape
 
     # Eigenvalue output.
-    eigenvalues_shape = None
-    eigenvalues_array = None
-    if eigenvalues:
-        eigenvalues_shape = (
-            3, 3) + volume.shape if include_all_eigenvalues else (
-                3, ) + volume.shape
+    if include_all_eigenvalues:
+        eigenvalues_shape = (3, 3) + volume.shape
+    else:
+        eigenvalues_shape = (3,) + volume.shape
 
-        if eigenvalues_path is None:
-            eigenvalues_array = RawArray(
-                'b',
-                np.prod(eigenvalues_shape, dtype=np.int64).item() *
-                np.dtype(eigenvalues_dtype).itemsize)
-            a = np.frombuffer(
-                eigenvalues_array,
-                dtype=eigenvalues_dtype).reshape(eigenvalues_shape)
-            logging.info(
-                f'Created shared memory array for {str(a.dtype)} eigenvalues with shape {a.shape} occupying {a.nbytes:,} bytes.'
-            )
-            output.append(a)
-        elif isinstance(eigenvalues_path, str):
-            a = np.memmap(eigenvalues_path,
-                          dtype=eigenvalues_dtype,
-                          shape=eigenvalues_shape,
-                          mode='w+')
-            logging.info(
-                f'Created memory map at "{eigenvalues_path}" for {str(a.dtype)} eigenvalues with shape {a.shape} occupying {a.nbytes:,} bytes.'
-            )
-            output.append(a)
-        else:
-            raise ValueError(
-                f"Invalid type '{type(eigenvalues_path)}' for eigenvalues_path. Volume must be 'str' or None."
-            )
+    eigenvalues_array = None
+    eigenvalues_args = None
+
+    if eigenvalues is None:
+        pass
+    elif isinstance(eigenvalues, np.memmap):
+        assert eigenvalues.filename is not None
+        eigenvalues_args = _MemoryMapArgs(
+            path=eigenvalues.filename,
+            shape=eigenvalues.shape,
+            dtype=eigenvalues.dtype,
+            offset=eigenvalues.offset,
+            mode="r+",
+        )
+        eigenvalues_array = eigenvalues
+    else:
+        eigenvalues_dtype = np.dtype(eigenvalues)
+        eigenvalues_raw_array, eigenvalues_array = _create_raw_array(
+            eigenvalues_shape,
+            eigenvalues_dtype,
+        )
+        eigenvalues_args = _RawArrayArgs(
+            array=eigenvalues_raw_array,
+            shape=eigenvalues_shape,
+            dtype=eigenvalues_dtype,
+        )
+
+    assert eigenvalues_array is None or eigenvalues_shape == eigenvalues_array.shape
+
+    # Structure tensor output.
+    structure_tensor_shape = (6,) + volume.shape
+    structure_tensor_array = None
+    structure_tensor_args = None
+
+    if structure_tensor is None:
+        pass
+    elif isinstance(structure_tensor, np.memmap):
+        assert structure_tensor.filename is not None
+        structure_tensor_args = _MemoryMapArgs(
+            path=structure_tensor.filename,
+            shape=structure_tensor.shape,
+            dtype=structure_tensor.dtype,
+            offset=structure_tensor.offset,
+            mode="r+",
+        )
+        structure_tensor_array = structure_tensor
+    else:
+        structure_tensor_dtype = structure_tensor
+        structure_tensor_raw_array, structure_tensor_array = _create_raw_array(
+            structure_tensor_shape,
+            structure_tensor_dtype,
+        )
+        structure_tensor_args = _RawArrayArgs(
+            array=structure_tensor_raw_array,
+            shape=structure_tensor_shape,
+            dtype=structure_tensor_dtype,
+        )
 
     # Check devices.
     if devices is None:
         # Use all CPUs.
-        devices = ['cpu'] * cpu_count()
-    elif all(
-            isinstance(d, str) and (d.lower() == 'cpu' or 'cuda:' in d.lower())
-            for d in devices):
+        devices = ["cpu"] * cpu_count()
+    elif all(isinstance(d, str) and (d.lower() == "cpu" or "cuda:" in d.lower()) for d in devices):
         pass
     else:
-        raise ValueError(
-            "Invalid devices. Should be a list of 'cpu' or 'cuda:X', where X is the CUDA device number."
-        )
-    # As list.
-    devices = list(devices)
+        raise ValueError("Invalid devices. Should be a list of 'cpu' or 'cuda:X', where X is the CUDA device number.")
 
-    # Set arguments.
-    init_args = {
-        'data_array': volume_array,
-        'data_path': data_path,
-        'data_dtype': volume.dtype,
-        'data_shape': volume.shape,
-        'structure_tensor': {
-            'array': structure_tensor_array,
-            'path': structure_tensor_path,
-            'dtype': structure_tensor_dtype,
-            'shape': structure_tensor_shape,
-        } if structure_tensor else None,
-        'eigenvectors': {
-            'array': eigenvectors_array,
-            'path': eigenvectors_path,
-            'dtype': eigenvectors_dtype,
-            'shape': eigenvectors_shape,
-        } if eigenvectors else None,
-        'eigenvalues': {
-            'array': eigenvalues_array,
-            'path': eigenvalues_path,
-            'dtype': eigenvalues_dtype,
-            'shape': eigenvalues_shape,
-        } if eigenvalues else None,
-        'rho': rho,
-        'sigma': sigma,
-        'block_size': block_size,
-        'truncate': truncate,
-        'include_all_eigenvalues': include_all_eigenvalues,
-        'devices': devices,
-    }
+    queue = SimpleQueue()
+    for device in devices:
+        queue.put(device)
+
+    init_args = _InitArgs(
+        data_args=data_args,
+        structure_tensor_args=structure_tensor_args,
+        eigenvectors_args=eigenvectors_args,
+        eigenvalues_args=eigenvalues_args,
+        rho=rho,
+        sigma=sigma,
+        block_size=block_size,
+        truncate=truncate,
+        include_all_eigenvalues=include_all_eigenvalues,
+        eigenvalue_order=eigenvalue_order,
+        devices=queue,
+    )
 
     block_count = util.get_block_count(volume, block_size)
     count = 0
     results = []
-    logging.info(f'Volume partitioned into {block_count} blocks.')
-    with Pool(processes=len(devices),
-              initializer=init_worker,
-              initargs=(init_args, )) as pool:
+    logger.info(f"Volume partitioned into {block_count} blocks.")
+    pool_ctor = Pool if use_process_pool else ThreadPool
+    with pool_ctor(processes=len(devices), initializer=_init_worker, initargs=(init_args,)) as pool:
         for res in pool.imap_unordered(
-                do_work,
-                range(block_count),
-                chunksize=1,
+            _do_work,
+            range(block_count),
+            chunksize=1,
         ):
             count += 1
-            logging.info(f'Block {res} complete ({count}/{block_count}).')
+            logger.info(f"Block {res} complete ({count}/{block_count}).")
             results.append(res)
             if isinstance(progress_callback_fn, Callable):
                 progress_callback_fn(count, block_count)
 
-    # Return output as tuple.
-    return tuple(output)
+    output = []
+
+    if structure_tensor_array is not None:
+        output.append(structure_tensor_array)
+
+    if eigenvectors_array is not None:
+        output.append(eigenvectors_array)
+
+    if eigenvalues_array is not None:
+        output.append(eigenvalues_array)
+
+    if len(output) == 1:
+        return output[0]
+    elif len(output) == 2:
+        return output[0], output[1]
+    elif len(output) == 3:
+        return output[0], output[1], output[2]
+
+    raise ValueError("No output generated.")
 
 
-param_dict = {}
+_worker_args: _InitArgs | None = None
+_data_sources: _DataSources | None = None
 
 
-def init_worker(kwargs):
+def _init_worker(init_args: _InitArgs):
     """Initialization function for worker."""
 
-    output_names = ['structure_tensor', 'eigenvectors', 'eigenvalues']
+    global _worker_args
+    global _data_sources
 
-    for k in kwargs:
-        if k == 'data_array' and kwargs[k] is not None:
-            # Create ndarray from shared memory.
-            shared_array = kwargs['data_array']
-            param_dict['data'] = np.ndarray(
-                buffer=shared_array,
-                dtype=kwargs['data_dtype'],
-                shape=kwargs['data_shape'],
-            )
-        elif k == 'data_path' and kwargs[k] is not None:
-            # Open read-only memmap.
-            param_dict['data'] = np.memmap(kwargs['data_path'],
-                                           dtype=kwargs['data_dtype'],
-                                           shape=kwargs['data_shape'],
-                                           mode='r')
-        elif k in output_names and kwargs[k] is not None:
-            d = kwargs[k]
-            if d['array'] is not None:
-                # Create ndarray from shared memory.
-                shared_array = d['array']
-                param_dict[k] = np.ndarray(
-                    buffer=shared_array,
-                    dtype=d['dtype'],
-                    shape=d['shape'],
-                )
-            elif d['path'] is not None:
-                # Open read/write memmap.
-                param_dict[k] = np.memmap(d['path'],
-                                          dtype=d['dtype'],
-                                          shape=d['shape'],
-                                          mode='r+')
-        else:
-            param_dict[k] = kwargs[k]
+    _worker_args = init_args
+    _data_sources = init_args.get_data_sources()
 
 
-def do_work(block_id):
+def _do_work(block_id: int):
     """Worker function."""
 
-    params = SimpleNamespace(**param_dict)
+    if _worker_args is None:
+        raise ValueError("Worker not initialized.")
 
-    if isinstance(params.devices, list):
-        # If more devices are provided select one.
-        params.devices = params.devices[block_id % len(params.devices)]
-        # Overwrite initial device value to prevent process changing device on next iteration.
-        param_dict['devices'] = params.devices
+    if _data_sources is None:
+        raise ValueError("Data sources not initialized.")
 
-    if cp is not None and isinstance(
-            params.devices, str) and params.devices.startswith('cuda'):
-
-        split = params.devices.split(':')
+    if cp is not None and st3dcp is not None and _data_sources.device.startswith("cuda"):
+        split = _data_sources.device.split(":")
         if len(split) > 1:
-            # Overwrite initial device value to prevent process changing device on next iteration.
-            param_dict['devices'] = split[0]
-
             # CUDA device ID specified. Use that device.
             device_id = int(split[1])
             cp.cuda.Device(device_id).use()
@@ -317,10 +371,10 @@ def do_work(block_id):
     # Get block, positions and padding.
     block, pos, pad = util.get_block(
         block_id,
-        params.data,
-        sigma=max(params.sigma, params.rho),
-        block_size=params.block_size,
-        truncate=params.truncate,
+        _data_sources.data,
+        sigma=max(_worker_args.sigma, _worker_args.rho),
+        block_size=_worker_args.block_size,
+        truncate=_worker_args.truncate,
         copy=False,
     )
 
@@ -330,27 +384,28 @@ def do_work(block_id):
     # Calculate structure tensor.
     S = st.structure_tensor_3d(
         block,
-        sigma=params.sigma,
-        rho=params.rho,
-        truncate=params.truncate,
+        sigma=_worker_args.sigma,
+        rho=_worker_args.rho,
+        truncate=_worker_args.truncate,
     )
 
-    if params.structure_tensor is not None:
+    if _data_sources.structure_tensor is not None:
         # Insert S if relevant.
-        util.insert_block(params.structure_tensor, S, pos, pad)
+        util.insert_block(_data_sources.structure_tensor, S, pos, pad)
 
     # Calculate eigenvectors and values.
-    val, vec = st.eig_special_3d(S, full=params.include_all_eigenvalues)
+    val, vec = st.eig_special_3d(
+        S,
+        full=_worker_args.include_all_eigenvalues,
+        eigenvalue_order=_worker_args.eigenvalue_order,
+    )
 
-    if params.eigenvectors is not None:
+    if _data_sources.eigenvectors is not None:
         # Insert vectors if relevant.
-        util.insert_block(params.eigenvectors, vec, pos, pad)
+        util.insert_block(_data_sources.eigenvectors, vec, pos, pad)
 
-    if params.eigenvalues is not None:
-        # Flip so largest value is first.
-        val = lib.flip(val, axis=0)
-
+    if _data_sources.eigenvalues is not None:
         # Insert values if relevant.
-        util.insert_block(params.eigenvalues, val, pos, pad)
+        util.insert_block(_data_sources.eigenvalues, val, pos, pad)
 
     return block_id
