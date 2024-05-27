@@ -108,13 +108,34 @@ def parallel_structure_tensor_analysis(
     structure_tensor: np.memmap | npt.DTypeLike | None = None,
     truncate: float = 4.0,
     block_size: int = 128,
-    include_all_eigenvalues: bool = False,
+    include_all_eigenvectors: bool = False,
     eigenvalue_order: Literal["desc", "asc"] = "desc",
     devices: Sequence[str] | None = None,
     progress_callback_fn: Callable[[int, int], None] | None = None,
     fallback_to_cpu: bool = True,
     pool_type: Literal["process", "thread"] = DEFAULT_POOL_TYPE,
-) -> np.ndarray | tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+):
+    """Perform parallel structure tensor analysis on a 3D volume. Returns the structure tensor, eigenvalues, and eigenvectors.
+
+    Args:
+        volume: The 3D volume to analyze.
+        sigma: The standard deviation of the Gaussian kernel used for smoothing.
+        rho: The standard deviation of the Gaussian kernel used for integration.
+        eigenvectors: The output array for the eigenvectors. If a dtype is provided, a new array is created. If None, eigenvectors are not returned.
+        eigenvalues: The output array for the eigenvalues. If a dtype is provided, a new array is created. If None, eigenvalues are not returned.
+        structure_tensor: The output array for the structure tensor. If a dtype is provided, a new array is created. If None, the structure tensor is not returned.
+        truncate: The number of standard deviations to truncate the Gaussian kernel.
+        block_size: The size of the blocks to process.
+        include_all_eigenvectors: Whether to include all eigenvectors or just the vector corresponding to the smallet eigenvalue.
+        eigenvalue_order: The order of eigenvalues. Either "desc" for descending or "asc" for ascending. If all three eigenvectors are returned, they will be ordered according to the eigenvalues.
+        devices: The devices to use for processing. May one or more instances of "cpu" or "cuda:X", where X is the CUDA device number. For example `["cpu", "cpu", "cuda:0"]` will use use two CPU-based processes and one GPU-based process running on CUDA device 1. If None, all one CPU-based process per CPU core is used.
+        progress_callback_fn: A callback function that is called with the current block count and the total block count.
+        fallback_to_cpu: Whether to fall back to CPU if CuPy is specified but is not available.
+        pool_type: The type of pool to use. Either "process" or "thread". If "process", a process pool is used. If "thread", a thread pool is used. The default is "thread" on Windows and "process" on other platforms.
+
+    Returns:
+        A tuple containing the structure tensor, eigenvalues, and eigenvectors. Each of the value may be None if not requested.
+    """
 
     if pool_type not in ["process", "thread"]:
         raise ValueError("Invalid pool type. Should be 'process' or 'thread'.")
@@ -171,7 +192,10 @@ def parallel_structure_tensor_analysis(
         )
 
     # Eigenvector output.
-    eigenvectors_shape = (3,) + volume.shape
+    if include_all_eigenvectors:
+        eigenvectors_shape = (3, 3) + volume.shape
+    else:
+        eigenvectors_shape = (3,) + volume.shape
     eigenvectors_array = None
     eigenvectors_args = None
 
@@ -202,11 +226,7 @@ def parallel_structure_tensor_analysis(
     assert eigenvectors_array is None or eigenvectors_shape == eigenvectors_array.shape
 
     # Eigenvalue output.
-    if include_all_eigenvalues:
-        eigenvalues_shape = (3, 3) + volume.shape
-    else:
-        eigenvalues_shape = (3,) + volume.shape
-
+    eigenvalues_shape = (3,) + volume.shape
     eigenvalues_array = None
     eigenvalues_args = None
 
@@ -287,7 +307,7 @@ def parallel_structure_tensor_analysis(
         sigma=sigma,
         block_size=block_size,
         truncate=truncate,
-        include_all_eigenvalues=include_all_eigenvalues,
+        include_all_eigenvalues=include_all_eigenvectors,
         eigenvalue_order=eigenvalue_order,
         devices=queue,
     )
@@ -309,25 +329,7 @@ def parallel_structure_tensor_analysis(
             if isinstance(progress_callback_fn, Callable):
                 progress_callback_fn(count, block_count)
 
-    output = []
-
-    if structure_tensor_array is not None:
-        output.append(structure_tensor_array)
-
-    if eigenvectors_array is not None:
-        output.append(eigenvectors_array)
-
-    if eigenvalues_array is not None:
-        output.append(eigenvalues_array)
-
-    if len(output) == 1:
-        return output[0]
-    elif len(output) == 2:
-        return output[0], output[1]
-    elif len(output) == 3:
-        return output[0], output[1], output[2]
-
-    raise ValueError("No output generated.")
+    return structure_tensor_array, eigenvalues_array, eigenvectors_array
 
 
 _worker_args: _InitArgs | None = None

@@ -4,8 +4,8 @@ import logging
 from typing import Literal
 
 import cupy as lib
-import cupyx as cpx
 import cupy.typing as libt
+import cupyx as cpx
 from cupyx.scipy import ndimage
 
 
@@ -77,12 +77,12 @@ def eig_special_3d(
 
     Args:
         S: A floating point array with shape (6, ...) containing structure tensor. Use `float64` to avoid numerical errors. When using lower precision, ensure that the values of S are not very small/large. Pass `cupy.ndarray` to avoid copying S.
-        full: A flag indicating that all three eigenvalues should be returned.
-        eigenvalue_order: The order of eigenvalues. Either "desc" for descending or "asc" for ascending.
+        full: A flag indicating that all three eigenvectors should be returned.
+        eigenvalue_order: The order of eigenvalues. Either "desc" for descending or "asc" for ascending. If all three eigenvectors are returned, they will be ordered according to the eigenvalues.
 
     Returns:
         val: An array with shape `(3, ...)` containing eigenvalues.
-        vec: An array with shape `(3, ...)` if `full` is `False`, otherwise `(3, 3, ...)` containing eigenvectors.
+        vec: An array with shape `(3, ...)` containing the vector corresponding to the smallest eigenvalue if `full` is `False`, otherwise `(3, 3, ...)` containing eigenvectors.
 
     More:
         An analytic solution of eigenvalue problem for real symmetric matrix,
