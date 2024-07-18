@@ -3,7 +3,7 @@ requires = ["setuptools"]
 
 [project]
 name = "structure-tensor"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 version = "0.3.0"
 authors = [{ name = "Niels Jeppesen", email = "niejep@dtu.dk" }]
 description = "Fast and simple to use 2D and 3D structure tensor implementation for Python."
@@ -32,7 +32,7 @@ cupy = ["cupy>=8"]
 
 [tool.black]
 line-length = 120
-target-version = ['py39']
+target-version = ['py310']
 
 [tool.isort]
 profile = "black"
