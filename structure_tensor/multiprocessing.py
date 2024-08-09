@@ -47,6 +47,23 @@ class _RawArrayArgs:
         return np.frombuffer(self.array, dtype=self.dtype).reshape(self.shape)
 
 
+def extract_slice(original: np.ndarray | None, sliced: np.memmap) -> tuple[slice, ...] | None:
+    if original is None:
+        return None
+
+    slice_indices = []
+    offset_diff = (sliced.ctypes.data - original.ctypes.data) // original.itemsize
+
+    for orig_stride, sliced_dim, sliced_stride in zip(original.strides, sliced.shape, sliced.strides):
+        start = offset_diff // (orig_stride // original.itemsize)
+        step = sliced_stride // orig_stride
+        stop = start + sliced_dim * step
+        slice_indices.append(slice(start, stop, step))
+        offset_diff %= orig_stride
+
+    return tuple(slice_indices)
+
+
 @dataclass(frozen=True)
 class _MemoryMapArgs:
     path: str
@@ -54,9 +71,13 @@ class _MemoryMapArgs:
     dtype: npt.DTypeLike
     offset: int
     mode: Literal["r", "r+"]
+    slices: tuple[slice, ...] | None = None
 
-    def get_array(self) -> np.memmap:
-        return np.memmap(self.path, dtype=self.dtype, shape=self.shape, mode=self.mode, offset=self.offset)
+    def get_array(self) -> np.ndarray:
+        map = np.memmap(self.path, dtype=self.dtype, shape=self.shape, mode=self.mode, offset=self.offset)
+        if self.slices is not None:
+            return map[self.slices]
+        return map
 
 
 @dataclass
@@ -162,10 +183,11 @@ def parallel_structure_tensor_analysis(
         )
         data_args = _MemoryMapArgs(
             path=volume.filename,
-            shape=volume.shape,
+            shape=volume.base.shape if volume.base is not None else volume.shape,
             dtype=volume.dtype,
             offset=volume.offset,
             mode="r",
+            slices=extract_slice(volume.base, volume),
         )
     elif isinstance(volume, np.ndarray):
         # If ndarray, copy data to shared memory array. This will double the memory usage.
@@ -205,10 +227,11 @@ def parallel_structure_tensor_analysis(
         assert eigenvectors.filename is not None
         eigenvectors_args = _MemoryMapArgs(
             path=eigenvectors.filename,
-            shape=eigenvectors.shape,
+            shape=eigenvectors.base.shape if eigenvectors.base is not None else eigenvectors.shape,
             dtype=eigenvectors.dtype,
             offset=eigenvectors.offset,
             mode="r+",
+            slices=extract_slice(eigenvectors.base, eigenvectors),
         )
         eigenvectors_array = eigenvectors
     else:
@@ -236,10 +259,11 @@ def parallel_structure_tensor_analysis(
         assert eigenvalues.filename is not None
         eigenvalues_args = _MemoryMapArgs(
             path=eigenvalues.filename,
-            shape=eigenvalues.shape,
+            shape=eigenvalues.base.shape if eigenvalues.base is not None else eigenvalues.shape,
             dtype=eigenvalues.dtype,
             offset=eigenvalues.offset,
             mode="r+",
+            slices=extract_slice(eigenvalues.base, eigenvalues),
         )
         eigenvalues_array = eigenvalues
     else:
@@ -267,10 +291,11 @@ def parallel_structure_tensor_analysis(
         assert structure_tensor.filename is not None
         structure_tensor_args = _MemoryMapArgs(
             path=structure_tensor.filename,
-            shape=structure_tensor.shape,
+            shape=structure_tensor.base.shape if structure_tensor.base is not None else structure_tensor.shape,
             dtype=structure_tensor.dtype,
             offset=structure_tensor.offset,
             mode="r+",
+            slices=extract_slice(structure_tensor.base, structure_tensor),
         )
         structure_tensor_array = structure_tensor
     else:
