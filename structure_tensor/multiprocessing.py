@@ -47,8 +47,14 @@ class _RawArrayArgs:
         return np.frombuffer(self.array, dtype=self.dtype).reshape(self.shape)
 
 
+def _get_base_shape(array: np.ndarray) -> tuple[int, ...]:
+    if isinstance(array.base, np.ndarray):
+        return _get_base_shape(array.base)
+    return tuple(array.shape)
+
+
 def extract_slice(original: np.ndarray | None, sliced: np.memmap) -> tuple[slice, ...] | None:
-    if original is None:
+    if not isinstance(original, np.ndarray):
         return None
 
     slice_indices = []
@@ -183,7 +189,7 @@ def parallel_structure_tensor_analysis(
         )
         data_args = _MemoryMapArgs(
             path=volume.filename,
-            shape=volume.base.shape if volume.base is not None else volume.shape,
+            shape=_get_base_shape(volume),
             dtype=volume.dtype,
             offset=volume.offset,
             mode="r",
@@ -227,7 +233,7 @@ def parallel_structure_tensor_analysis(
         assert eigenvectors.filename is not None
         eigenvectors_args = _MemoryMapArgs(
             path=eigenvectors.filename,
-            shape=eigenvectors.base.shape if eigenvectors.base is not None else eigenvectors.shape,
+            shape=_get_base_shape(eigenvectors),
             dtype=eigenvectors.dtype,
             offset=eigenvectors.offset,
             mode="r+",
@@ -259,7 +265,7 @@ def parallel_structure_tensor_analysis(
         assert eigenvalues.filename is not None
         eigenvalues_args = _MemoryMapArgs(
             path=eigenvalues.filename,
-            shape=eigenvalues.base.shape if eigenvalues.base is not None else eigenvalues.shape,
+            shape=_get_base_shape(eigenvalues),
             dtype=eigenvalues.dtype,
             offset=eigenvalues.offset,
             mode="r+",
@@ -291,7 +297,7 @@ def parallel_structure_tensor_analysis(
         assert structure_tensor.filename is not None
         structure_tensor_args = _MemoryMapArgs(
             path=structure_tensor.filename,
-            shape=structure_tensor.base.shape if structure_tensor.base is not None else structure_tensor.shape,
+            shape=_get_base_shape(structure_tensor),
             dtype=structure_tensor.dtype,
             offset=structure_tensor.offset,
             mode="r+",
