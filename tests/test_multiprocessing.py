@@ -8,6 +8,12 @@ from structure_tensor import multiprocessing
 TEST_FILE_DIR = f".test_multiprocessing"
 
 
+@pytest.fixture(scope="session", autouse=True)
+def setup():
+    """Setup test directory."""
+    os.makedirs(TEST_FILE_DIR, exist_ok=True)
+
+
 @pytest.mark.parametrize("volume_shape", [(50, 50, 50), (101, 100, 51)])
 @pytest.mark.parametrize("slices", [None, (slice(0, 25), slice(4, 47), slice(1, 40))])
 @pytest.mark.parametrize("sigma", [2.5, 10])
