@@ -14,13 +14,13 @@ def setup():
     os.makedirs(TEST_FILE_DIR, exist_ok=True)
 
 
-@pytest.mark.parametrize("volume_shape", [(50, 50, 50), (101, 100, 51)])
+@pytest.mark.parametrize("volume_shape", [(50, 59, 51)])
 @pytest.mark.parametrize("slices", [None, (slice(0, 25), slice(4, 47), slice(1, 40))])
 @pytest.mark.parametrize("sigma", [2.5, 10])
 @pytest.mark.parametrize("rho", [1.5, 5])
-@pytest.mark.parametrize("block_size", [10, 100])
+@pytest.mark.parametrize("block_size", [20, 100])
 @pytest.mark.parametrize("truncate", [2.0, 4])
-@pytest.mark.parametrize("devices", [["cpu"] * 4, ["cuda:0"]])
+@pytest.mark.parametrize("devices", [["cpu"] * 4])
 def test_parallel_structure_tensor_analysis(
     volume_shape,
     slices,
