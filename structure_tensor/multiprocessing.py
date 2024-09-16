@@ -57,10 +57,15 @@ def extract_slice(original: np.ndarray | None, sliced: np.memmap) -> tuple[slice
     if not isinstance(original, np.ndarray):
         return None
 
+    # If the sliced array axes have been permuted, the strides will be in a different order.
+    # We reorder the strides to match the original array to match the sliced array.
+    stride_indices = np.argsort(sliced.strides)[::-1]
+    original_strides_sorted = tuple(np.array(original.strides)[stride_indices])
+
     slice_indices = []
     offset_diff = (sliced.ctypes.data - original.ctypes.data) // original.itemsize
 
-    for orig_stride, sliced_dim, sliced_stride in zip(original.strides, sliced.shape, sliced.strides):
+    for orig_stride, sliced_dim, sliced_stride in zip(original_strides_sorted, sliced.shape, sliced.strides):
         start = offset_diff // (orig_stride // original.itemsize)
         step = sliced_stride // orig_stride
         stop = start + sliced_dim * step
