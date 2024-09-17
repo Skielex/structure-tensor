@@ -15,12 +15,20 @@ def setup():
 
 
 @pytest.mark.parametrize("volume_shape", [(50, 59, 51)])
-@pytest.mark.parametrize("slices", [None, (slice(0, 25), slice(4, 47), slice(1, 40))])
+@pytest.mark.parametrize(
+    "slices",
+    [
+        None,
+        (slice(0, 25), slice(4, 47), slice(1, 40)),
+        (slice(0, 11, 2), slice(47, 4, -1), slice(5, -5)),
+    ],
+)
 @pytest.mark.parametrize("sigma", [2.5, 10])
 @pytest.mark.parametrize("rho", [1.5, 5])
 @pytest.mark.parametrize("block_size", [20, 100])
 @pytest.mark.parametrize("truncate", [2.0, 4])
 @pytest.mark.parametrize("devices", [["cpu"] * 4])
+@pytest.mark.parametrize("pool_type", ["process", "thread"])
 def test_parallel_structure_tensor_analysis(
     volume_shape,
     slices,
@@ -29,6 +37,7 @@ def test_parallel_structure_tensor_analysis(
     block_size,
     truncate,
     devices,
+    pool_type,
 ):
     """Test parallel structure tensor analysis."""
 
@@ -45,6 +54,7 @@ def test_parallel_structure_tensor_analysis(
         truncate=truncate,
         devices=devices,
         structure_tensor=np.float32,
+        pool_type=pool_type,
     )
 
     test_volume_name = os.path.join(TEST_FILE_DIR, f"test_volume_{str(uuid.uuid4())}.npy")
@@ -64,6 +74,7 @@ def test_parallel_structure_tensor_analysis(
         truncate=truncate,
         devices=devices,
         structure_tensor=np.float32,
+        pool_type=pool_type,
     )
 
     assert S_0 is not None
@@ -111,6 +122,7 @@ def test_parallel_structure_tensor_analysis(
         eigenvalues=val_1,
         eigenvectors=vec_1,
         structure_tensor=S_1,
+        pool_type=pool_type,
     )
 
     assert S_1 is not None
