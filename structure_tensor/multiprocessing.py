@@ -47,16 +47,8 @@ class _RawArrayArgs:
         return np.frombuffer(self.array, dtype=self.dtype).reshape(self.shape)
 
 
-def _get_base_shape(array: np.ndarray) -> tuple[int, ...]:
-    if isinstance(array.base, np.ndarray):
-        return _get_base_shape(array.base)
-    return tuple(array.shape)
-
-
 @dataclass(frozen=True)
 class _ViewArgs:
-    dtype: npt.DTypeLike
-    shape: tuple[int, ...]
     strides: tuple[int, ...]
     offset: int
 
@@ -66,8 +58,6 @@ class _ViewArgs:
             return None
 
         return _ViewArgs(
-            dtype=m.dtype,
-            shape=m.shape,
             strides=m.strides,
             offset=m.ctypes.data - m.base.ctypes.data,
         )
@@ -90,9 +80,9 @@ class _MemoryMapArgs:
                 self.path,
                 mode=self.mode,
                 offset=self.offset + self.view.offset,
-                dtype=self.view.dtype,
+                dtype=self.dtype,
             )
-            map = np.lib.stride_tricks.as_strided(map, shape=self.view.shape, strides=self.view.strides)
+            map = np.lib.stride_tricks.as_strided(map, shape=self.shape, strides=self.view.strides)
             return map
 
 
@@ -199,7 +189,7 @@ def parallel_structure_tensor_analysis(
         )
         data_args = _MemoryMapArgs(
             path=volume.filename,
-            shape=_get_base_shape(volume),
+            shape=volume.shape,
             dtype=volume.dtype,
             offset=volume.offset,
             mode="r",
@@ -243,7 +233,7 @@ def parallel_structure_tensor_analysis(
         assert eigenvectors.filename is not None
         eigenvectors_args = _MemoryMapArgs(
             path=eigenvectors.filename,
-            shape=_get_base_shape(eigenvectors),
+            shape=eigenvectors.shape,
             dtype=eigenvectors.dtype,
             offset=eigenvectors.offset,
             mode="r+",
@@ -275,7 +265,7 @@ def parallel_structure_tensor_analysis(
         assert eigenvalues.filename is not None
         eigenvalues_args = _MemoryMapArgs(
             path=eigenvalues.filename,
-            shape=_get_base_shape(eigenvalues),
+            shape=eigenvalues.shape,
             dtype=eigenvalues.dtype,
             offset=eigenvalues.offset,
             mode="r+",
@@ -307,7 +297,7 @@ def parallel_structure_tensor_analysis(
         assert structure_tensor.filename is not None
         structure_tensor_args = _MemoryMapArgs(
             path=structure_tensor.filename,
-            shape=_get_base_shape(structure_tensor),
+            shape=structure_tensor.shape,
             dtype=structure_tensor.dtype,
             offset=structure_tensor.offset,
             mode="r+",
