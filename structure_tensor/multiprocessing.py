@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 from multiprocessing import Pool, RawArray, SimpleQueue, cpu_count
 from multiprocessing.pool import ThreadPool
-from typing import Any, Callable, Literal, Sequence
+from typing import Any, Callable, Literal, Sequence, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -53,26 +53,24 @@ def _get_base_shape(array: np.ndarray) -> tuple[int, ...]:
     return tuple(array.shape)
 
 
-def extract_slice(original: np.ndarray | None, sliced: np.memmap) -> tuple[slice, ...] | None:
-    if not isinstance(original, np.ndarray):
-        return None
+@dataclass(frozen=True)
+class _ViewArgs:
+    dtype: npt.DTypeLike
+    shape: tuple[int, ...]
+    strides: tuple[int, ...]
+    offset: int
 
-    # If the sliced array axes have been permuted, the strides will be in a different order.
-    # We reorder the strides to match the original array to match the sliced array.
-    stride_indices = np.argsort(sliced.strides)[::-1]
-    original_strides_sorted = tuple(np.array(original.strides)[stride_indices])
+    @staticmethod
+    def from_memmap(m: np.memmap) -> Union["_ViewArgs", None]:
+        if not isinstance(m.base, np.memmap):
+            return None
 
-    slice_indices = []
-    offset_diff = (sliced.ctypes.data - original.ctypes.data) // original.itemsize
-
-    for orig_stride, sliced_dim, sliced_stride in zip(original_strides_sorted, sliced.shape, sliced.strides):
-        start = offset_diff // (orig_stride // original.itemsize)
-        step = sliced_stride // orig_stride
-        stop = start + sliced_dim * step
-        slice_indices.append(slice(start, stop, step))
-        offset_diff %= orig_stride
-
-    return tuple(slice_indices)
+        return _ViewArgs(
+            dtype=m.dtype,
+            shape=m.shape,
+            strides=m.strides,
+            offset=m.ctypes.data - m.base.ctypes.data,
+        )
 
 
 @dataclass(frozen=True)
@@ -82,13 +80,20 @@ class _MemoryMapArgs:
     dtype: npt.DTypeLike
     offset: int
     mode: Literal["r", "r+"]
-    slices: tuple[slice, ...] | None = None
+    view: _ViewArgs | None = None
 
     def get_array(self) -> np.ndarray:
-        map = np.memmap(self.path, dtype=self.dtype, shape=self.shape, mode=self.mode, offset=self.offset)
-        if self.slices is not None:
-            return map[self.slices]
-        return map
+        if self.view is None:
+            return np.memmap(self.path, dtype=self.dtype, shape=self.shape, mode=self.mode, offset=self.offset)
+        else:
+            map = np.memmap(
+                self.path,
+                mode=self.mode,
+                offset=self.offset + self.view.offset,
+                dtype=self.view.dtype,
+            )
+            map = np.lib.stride_tricks.as_strided(map, shape=self.view.shape, strides=self.view.strides)
+            return map
 
 
 @dataclass
@@ -198,7 +203,7 @@ def parallel_structure_tensor_analysis(
             dtype=volume.dtype,
             offset=volume.offset,
             mode="r",
-            slices=extract_slice(volume.base, volume),
+            view=_ViewArgs.from_memmap(volume),
         )
     elif isinstance(volume, np.ndarray):
         # If ndarray, copy data to shared memory array. This will double the memory usage.
@@ -242,7 +247,7 @@ def parallel_structure_tensor_analysis(
             dtype=eigenvectors.dtype,
             offset=eigenvectors.offset,
             mode="r+",
-            slices=extract_slice(eigenvectors.base, eigenvectors),
+            view=_ViewArgs.from_memmap(eigenvectors),
         )
         eigenvectors_array = eigenvectors
     else:
@@ -274,7 +279,7 @@ def parallel_structure_tensor_analysis(
             dtype=eigenvalues.dtype,
             offset=eigenvalues.offset,
             mode="r+",
-            slices=extract_slice(eigenvalues.base, eigenvalues),
+            view=_ViewArgs.from_memmap(eigenvalues),
         )
         eigenvalues_array = eigenvalues
     else:
@@ -306,7 +311,7 @@ def parallel_structure_tensor_analysis(
             dtype=structure_tensor.dtype,
             offset=structure_tensor.offset,
             mode="r+",
-            slices=extract_slice(structure_tensor.base, structure_tensor),
+            view=_ViewArgs.from_memmap(structure_tensor),
         )
         structure_tensor_array = structure_tensor
     else:
