@@ -48,16 +48,16 @@ class _RawArrayArgs:
 
 
 @dataclass(frozen=True)
-class _ViewArgs:
+class _StrideInfo:
     strides: tuple[int, ...]
     offset: int
 
     @staticmethod
-    def from_memmap(m: np.memmap) -> Union["_ViewArgs", None]:
+    def from_memmap(m: np.memmap) -> Union["_StrideInfo", None]:
         if not isinstance(m.base, np.memmap):
             return None
 
-        return _ViewArgs(
+        return _StrideInfo(
             strides=m.strides,
             offset=m.ctypes.data - m.base.ctypes.data,
         )
@@ -70,19 +70,31 @@ class _MemoryMapArgs:
     dtype: npt.DTypeLike
     offset: int
     mode: Literal["r", "r+"]
-    view: _ViewArgs | None = None
+    stride_info: _StrideInfo | None = None
+
+    @staticmethod
+    def from_memmap(m: np.memmap, mode: Literal["r", "r+"]) -> "_MemoryMapArgs":
+        assert m.filename is not None
+        return _MemoryMapArgs(
+            path=m.filename,
+            shape=m.shape,
+            dtype=m.dtype,
+            offset=m.offset,
+            mode=mode,
+            stride_info=_StrideInfo.from_memmap(m),
+        )
 
     def get_array(self) -> np.ndarray:
-        if self.view is None:
+        if self.stride_info is None:
             return np.memmap(self.path, dtype=self.dtype, shape=self.shape, mode=self.mode, offset=self.offset)
         else:
             map = np.memmap(
                 self.path,
                 mode=self.mode,
-                offset=self.offset + self.view.offset,
-                dtype=self.dtype,
+                offset=self.offset,
             )
-            map = np.lib.stride_tricks.as_strided(map, shape=self.shape, strides=self.view.strides)
+            map = map[self.stride_info.offset :].view(self.dtype)
+            map = np.lib.stride_tricks.as_strided(map, shape=self.shape, strides=self.stride_info.strides)
             return map
 
 
@@ -98,9 +110,9 @@ class _DataSources:
 @dataclass(frozen=True)
 class _InitArgs:
     data_args: _RawArrayArgs | _MemoryMapArgs | _ArrayArgs
-    structure_tensor_args: _RawArrayArgs | _MemoryMapArgs | None
-    eigenvectors_args: _RawArrayArgs | _MemoryMapArgs | None
-    eigenvalues_args: _RawArrayArgs | _MemoryMapArgs | None
+    structure_tensor_args: _RawArrayArgs | _MemoryMapArgs | _ArrayArgs | None
+    eigenvectors_args: _RawArrayArgs | _MemoryMapArgs | _ArrayArgs | None
+    eigenvalues_args: _RawArrayArgs | _MemoryMapArgs | _ArrayArgs | None
     rho: float
     sigma: float
     block_size: int
@@ -127,7 +139,7 @@ def _create_raw_array(shape: tuple[int, ...], dtype: npt.DTypeLike) -> tuple[Any
 
 
 def parallel_structure_tensor_analysis(
-    volume: np.ndarray | np.memmap,
+    volume: np.ndarray,
     sigma: float,
     rho: float,
     eigenvectors: np.memmap | npt.DTypeLike | None = np.float32,
@@ -180,44 +192,30 @@ def parallel_structure_tensor_analysis(
         else:
             raise _cupy_import_error
 
+    logger.info(
+        f"Volume data provided as {str(volume.dtype)} {type(volume)} with shape {volume.shape} occupying {volume.nbytes:,} bytes."
+    )
     # Handle input data.
-    if isinstance(volume, np.memmap):
+
+    if copy_to_raw_array and isinstance(volume, np.memmap):
         # If memory map, get file path.
         assert volume.filename is not None
-        logger.info(
-            f"Volume data provided as {str(volume.dtype)} numpy.memmap with shape {volume.shape} occupying {volume.nbytes:,} bytes."
-        )
-        data_args = _MemoryMapArgs(
-            path=volume.filename,
-            shape=volume.shape,
-            dtype=volume.dtype,
-            offset=volume.offset,
-            mode="r",
-            view=_ViewArgs.from_memmap(volume),
-        )
-    elif isinstance(volume, np.ndarray):
+        data_args = _MemoryMapArgs.from_memmap(volume, mode="r")
+    elif copy_to_raw_array and isinstance(volume, np.ndarray):
         # If ndarray, copy data to shared memory array. This will double the memory usage.
         # Shared memory can be access by all processes without having to be copied.
-        logger.info(
-            f"Volume data provided as {str(volume.dtype)} numpy.ndarray with shape {volume.shape} occupying {volume.nbytes:,} bytes."
+        volume_raw_array, volume_array = _create_raw_array(volume.shape, volume.dtype)
+        volume_array[:] = volume
+        data_args = _RawArrayArgs(
+            array=volume_raw_array,
+            shape=volume.shape,
+            dtype=volume.dtype,
         )
-        if copy_to_raw_array:
-            volume_raw_array, volume_array = _create_raw_array(volume.shape, volume.dtype)
-            volume_array[:] = volume
-            data_args = _RawArrayArgs(
-                array=volume_raw_array,
-                shape=volume.shape,
-                dtype=volume.dtype,
-            )
-        else:
-            data_args = _ArrayArgs(array=volume)
-    elif isinstance(volume, (np.ndarray, np.memmap)):
+    elif not copy_to_raw_array and isinstance(volume, np.ndarray):
         # If ndarray or memmap and using thread pool, use as is.
         data_args = _ArrayArgs(array=volume)
     else:
-        raise ValueError(
-            f"Invalid type '{type(volume)}' for volume. Volume must be 'numpy.memmap' and 'numpy.ndarray'."
-        )
+        raise ValueError(f"Invalid type '{type(volume)}' for volume. Volume must be an 'numpy.ndarray'.")
 
     # Eigenvector output.
     if include_all_eigenvectors:
@@ -229,16 +227,12 @@ def parallel_structure_tensor_analysis(
 
     if eigenvectors is None:
         pass
-    elif isinstance(eigenvectors, np.memmap):
+    elif copy_to_raw_array and isinstance(eigenvectors, np.memmap):
         assert eigenvectors.filename is not None
-        eigenvectors_args = _MemoryMapArgs(
-            path=eigenvectors.filename,
-            shape=eigenvectors.shape,
-            dtype=eigenvectors.dtype,
-            offset=eigenvectors.offset,
-            mode="r+",
-            view=_ViewArgs.from_memmap(eigenvectors),
-        )
+        eigenvectors_args = _MemoryMapArgs.from_memmap(eigenvectors, mode="r+")
+        eigenvectors_array = eigenvectors
+    elif not copy_to_raw_array and isinstance(eigenvectors, np.memmap):
+        eigenvectors_args = _ArrayArgs(array=eigenvectors)
         eigenvectors_array = eigenvectors
     else:
         eigenvectors_dtype = eigenvectors
@@ -261,19 +255,15 @@ def parallel_structure_tensor_analysis(
 
     if eigenvalues is None:
         pass
-    elif isinstance(eigenvalues, np.memmap):
+    elif copy_to_raw_array and isinstance(eigenvalues, np.memmap):
         assert eigenvalues.filename is not None
-        eigenvalues_args = _MemoryMapArgs(
-            path=eigenvalues.filename,
-            shape=eigenvalues.shape,
-            dtype=eigenvalues.dtype,
-            offset=eigenvalues.offset,
-            mode="r+",
-            view=_ViewArgs.from_memmap(eigenvalues),
-        )
+        eigenvalues_args = _MemoryMapArgs.from_memmap(eigenvalues, mode="r+")
+        eigenvalues_array = eigenvalues
+    elif not copy_to_raw_array and isinstance(eigenvalues, np.memmap):
+        eigenvalues_args = _ArrayArgs(array=eigenvalues)
         eigenvalues_array = eigenvalues
     else:
-        eigenvalues_dtype = np.dtype(eigenvalues)
+        eigenvalues_dtype = eigenvalues
         eigenvalues_raw_array, eigenvalues_array = _create_raw_array(
             eigenvalues_shape,
             eigenvalues_dtype,
@@ -293,16 +283,12 @@ def parallel_structure_tensor_analysis(
 
     if structure_tensor is None:
         pass
-    elif isinstance(structure_tensor, np.memmap):
+    elif copy_to_raw_array and isinstance(structure_tensor, np.memmap):
         assert structure_tensor.filename is not None
-        structure_tensor_args = _MemoryMapArgs(
-            path=structure_tensor.filename,
-            shape=structure_tensor.shape,
-            dtype=structure_tensor.dtype,
-            offset=structure_tensor.offset,
-            mode="r+",
-            view=_ViewArgs.from_memmap(structure_tensor),
-        )
+        structure_tensor_args = _MemoryMapArgs.from_memmap(structure_tensor, mode="r+")
+        structure_tensor_array = structure_tensor
+    elif not copy_to_raw_array and isinstance(structure_tensor, np.memmap):
+        structure_tensor_args = _ArrayArgs(array=structure_tensor)
         structure_tensor_array = structure_tensor
     else:
         structure_tensor_dtype = structure_tensor
