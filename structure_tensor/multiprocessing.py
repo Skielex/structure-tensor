@@ -179,6 +179,9 @@ def parallel_structure_tensor_analysis(
     if pool_type not in ["process", "thread"]:
         raise ValueError("Invalid pool type. Should be 'process' or 'thread'.")
 
+    if pool_type == "thread" and devices and any("cuda:" in d.lower() for d in devices):
+        raise ValueError("CuPy is not available in thread pools. Use 'process' pool instead.")
+
     use_process_pool = pool_type == "process"
     copy_to_raw_array = use_process_pool and os.name == "nt"
 
