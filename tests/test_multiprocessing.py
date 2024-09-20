@@ -8,6 +8,17 @@ from structure_tensor import multiprocessing
 TEST_FILE_DIR = f".test_multiprocessing"
 
 
+def get_test_devices():
+    devices = [None, ["cpu"] * 4]
+    try:
+        import cupy
+
+        devices.append(["cuda:0"] * 4)
+    except:
+        pass
+    return devices
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup():
     """Setup test directory."""
@@ -19,19 +30,20 @@ def setup():
     "slices",
     [
         None,
-        (slice(0, 25), slice(4, 47), slice(1, 40)),
         (slice(0, 11, 2), slice(47, 4, -1), slice(5, -5)),
     ],
 )
+@pytest.mark.parametrize("transpose", [(-3, -2, -1), (-1, -3, -2), (-2, -1, -3)])
 @pytest.mark.parametrize("sigma", [2.5, 10])
 @pytest.mark.parametrize("rho", [1.5, 5])
 @pytest.mark.parametrize("block_size", [20, 100])
-@pytest.mark.parametrize("truncate", [2.0, 4])
-@pytest.mark.parametrize("devices", [["cpu"] * 4])
+@pytest.mark.parametrize("truncate", [2.1, 4])
+@pytest.mark.parametrize("devices", get_test_devices())
 @pytest.mark.parametrize("pool_type", ["process", "thread"])
 def test_parallel_structure_tensor_analysis(
     volume_shape,
     slices,
+    transpose,
     sigma,
     rho,
     block_size,
@@ -46,16 +58,25 @@ def test_parallel_structure_tensor_analysis(
 
     volume = np.random.random(volume_shape).astype(np.float32)[slices]
 
-    S_0, val_0, vec_0 = multiprocessing.parallel_structure_tensor_analysis(
-        volume=volume,
-        sigma=sigma,
-        rho=rho,
-        block_size=block_size,
-        truncate=truncate,
-        devices=devices,
-        structure_tensor=np.float32,
-        pool_type=pool_type,
-    )
+    try:
+        S_0, val_0, vec_0 = multiprocessing.parallel_structure_tensor_analysis(
+            volume=volume.transpose(transpose),
+            sigma=sigma,
+            rho=rho,
+            block_size=block_size,
+            truncate=truncate,
+            devices=devices,
+            structure_tensor=np.float32,
+            pool_type=pool_type,
+        )
+    except Exception as ex:
+        if pool_type == "thread" and devices and any("cuda:" in d.lower() for d in devices):
+            with pytest.raises(ValueError, match="CuPy is not available in thread pools. Use 'process' pool instead."):
+                raise ex
+            # Skip test the ramaining tests
+            return
+        else:
+            raise ex
 
     test_volume_name = os.path.join(TEST_FILE_DIR, f"test_volume_{str(uuid.uuid4())}.npy")
     memmap_volume = np.lib.format.open_memmap(
@@ -67,7 +88,7 @@ def test_parallel_structure_tensor_analysis(
     memmap_volume[:] = volume
 
     S_1, val_1, vec_1 = multiprocessing.parallel_structure_tensor_analysis(
-        volume=volume,
+        volume=volume.transpose(transpose),
         sigma=sigma,
         rho=rho,
         block_size=block_size,
@@ -113,15 +134,15 @@ def test_parallel_structure_tensor_analysis(
     )[(slice(None),) + slices]
 
     S_1, val_1, vec_1 = multiprocessing.parallel_structure_tensor_analysis(
-        volume=volume,
+        volume=volume.transpose(transpose),
         sigma=sigma,
         rho=rho,
         block_size=block_size,
         truncate=truncate,
         devices=devices,
-        eigenvalues=val_1,
-        eigenvectors=vec_1,
-        structure_tensor=S_1,
+        eigenvalues=val_1.transpose((0,) + transpose),
+        eigenvectors=vec_1.transpose((0,) + transpose),
+        structure_tensor=S_1.transpose((0,) + transpose),
         pool_type=pool_type,
     )
 
