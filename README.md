@@ -94,13 +94,13 @@ The ideal block size depends on the `sigma` and `rho`, the devices, and the memo
 You can use the following snipped to get a progress bar (with [tqdm](https://github.com/tqdm/tqdm#hooks-and-callbacks)).
 
 ``` python
-class STTqdm(tqdm):
+class TqdmTotal(tqdm):
     def update_with_total(self, n=1, total=None):
         if total is not None:
             self.total = total
         return self.update(1)
 
-with STTqdm() as t:
+with TqdmTotal() as t:
     S, val, vec = parallel_structure_tensor_analysis(
         data,
         sigma=0.1,
