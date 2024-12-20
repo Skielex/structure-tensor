@@ -91,23 +91,21 @@ S, val, vec = parallel_structure_tensor_analysis(data, sigma, rho, devices=4*['c
 
 The ideal block size depends on the `sigma` and `rho`, the devices, and the memory available for the devices. Usually values between 100 and 400 work well. **If you encounter out-of-memory errors, try reducing the block size and/or the number of processes.**
 
-You can use the following snipped to get a progress bar (with [tqdm](https://github.com/tqdm/tqdm#hooks-and-callbacks))
+You can use the following snipped to get a progress bar (with [tqdm](https://github.com/tqdm/tqdm#hooks-and-callbacks)).
 
 ``` python
-class STETqdm(tqdm):
+class STTqdm(tqdm):
     def update_with_total(self, n=1, total=None):
         if total is not None:
             self.total = total
         return self.update(1)
 
-with STETqdm() as t:
+with STTqdm() as t:
     S, val, vec = parallel_structure_tensor_analysis(
-        image_reduced,
+        data,
         sigma=0.1,
         rho=0.2,
-        truncate=4.0,
         devices=7 * ["cpu"],
-        structure_tensor=None,
         include_all_eigenvectors=True,
         block_size=30,
         progress_callback_fn=t.update_with_total,
