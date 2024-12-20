@@ -68,7 +68,7 @@ vec = cp.asnumpy(vec)
 ## Advanced examples
 The `structure_tensor` module also contains functions for parallel "blocked" calculation of the structure tensor and eigendecomposition. The easiest approach is to use the built-in function `structure_tensor.multiprocessing.parallel_structure_tensor_analysis`. This allows the computations to be distributed across many CPUs and CUDA devices. This can speed up computations many times and has the added benefit of reducing memory usage during calculation.
 
-In the example below the volume `data` is split into blocks of size 200 cubed and the workload will be distributed across 16 CPUs. 
+In the example below the volume `data` is split into blocks of size 200 cubed and the workload will be distributed across 16 CPUs.
 ``` python
 S, val, vec = parallel_structure_tensor_analysis(data, sigma, rho, devices=16*['cpu'], block_size=200)
 ```
@@ -90,6 +90,27 @@ S, val, vec = parallel_structure_tensor_analysis(data, sigma, rho, devices=4*['c
 ```
 
 The ideal block size depends on the `sigma` and `rho`, the devices, and the memory available for the devices. Usually values between 100 and 400 work well. **If you encounter out-of-memory errors, try reducing the block size and/or the number of processes.**
+
+You can use the following snipped to get a progress bar (with [tqdm](https://github.com/tqdm/tqdm#hooks-and-callbacks)).
+
+``` python
+class TqdmTotal(tqdm):
+    def update_with_total(self, n=1, total=None):
+        if total is not None:
+            self.total = total
+        return self.update(1)
+
+with TqdmTotal() as t:
+    S, val, vec = parallel_structure_tensor_analysis(
+        data,
+        sigma=0.1,
+        rho=0.2,
+        devices=7 * ["cpu"],
+        include_all_eigenvectors=True,
+        block_size=30,
+        progress_callback_fn=t.update_with_total,
+    )
+```
 
 ### Other advanced use
 The notebooks published in the [datasets](#data-and-notebooks) also contains examples. The `StructureTensorFiberAnalysisDemo` [ [notebook](https://zenodo.org/record/3877522/files/StructureTensorFiberAnalysisDemo.ipynb?download=1) | [HTML](https://zenodo.org/record/3877522/files/StructureTensorFiberAnalysisDemo.html?download=1) ] and `StructureTensorFiberAnalysisAdvancedDemo` [ [notebook](https://zenodo.org/record/3877522/files/StructureTensorFiberAnalysisAdvancedDemo.ipynb?download=1) | [HTML](https://zenodo.org/record/3877522/files/StructureTensorFiberAnalysisAdvancedDemo.html?download=1) ] notebooks are a good starting point. **However, these notebooks were made before the `parallel_structure_tensor_analysis` function was added and therefore use their own [code](https://zenodo.org/record/3877522/files/structure_tensor_workers.py?download=1) for parallel ST computation.**
