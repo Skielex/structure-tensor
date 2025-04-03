@@ -93,12 +93,14 @@ class TestUtil(unittest.TestCase):
             for i in range(len(pad)):
                 self.assertEqual(b.shape[i] - np.sum(pad[i]), b2.shape[i])
 
-    def test_remove_boundary(self):
-        """Test the remove boundary function."""
-        for b, pos, pad in util.get_block_generator(self.volume, self.sigma, self.block_size):
-            b2 = util.remove_boundary(b, pad, self.sigma)
-            for i in range(len(pad)):
-                self.assertEqual(b.shape[i] - np.sum(np.maximum(0, self.kernel_radius - pad[i])), b2.shape[i])
+            np.testing.assert_array_equal(
+                b[
+                    pad[0, 0] : b.shape[0] - pad[0, 1],
+                    pad[1, 0] : b.shape[1] - pad[1, 1],
+                    pad[2, 0] : b.shape[2] - pad[2, 1],
+                ],
+                b2,
+            )
 
     def test_insert_block(self):
         """Test the insert block function."""

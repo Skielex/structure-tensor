@@ -11,6 +11,11 @@ except Exception as ex:
     cp = None
 
 
+def _calculate_kernel_radius(sigma, truncate):
+    # Multiply by 2 since we do two rounds of filtering when calculating the structure tensor.
+    return 2 * int(sigma * truncate + 0.5)
+
+
 def get_block_count(data: npt.NDArray, block_size: int = 512) -> int:
     """Gets the number of blocks that will be created for the given input."""
 
@@ -27,7 +32,7 @@ def get_block(
 ) -> tuple[npt.NDArray, np.ndarray, np.ndarray]:
     """Gets the ith block."""
 
-    kernel_radius = int(sigma * truncate + 0.5)
+    kernel_radius = _calculate_kernel_radius(sigma, truncate)
     count = 0
 
     for x0 in range(0, data.shape[0], block_size):
@@ -74,7 +79,7 @@ def get_block_generator(
 ) -> Generator[tuple[npt.NDArray, np.ndarray, np.ndarray], None, None]:
     """Gets a generator that yields a tuple with a block, block position and block padding."""
 
-    kernel_radius = int(sigma * truncate + 0.5)
+    kernel_radius = _calculate_kernel_radius(sigma, truncate)
 
     for x0 in range(0, data.shape[0], block_size):
         x1 = x0 + block_size
@@ -131,29 +136,6 @@ def remove_padding(block: npt.NDArray, pad: npt.NDArray[np.integer]) -> npt.NDAr
         pad[0, 0] : block.shape[-3] - pad[0, 1],
         pad[1, 0] : block.shape[-2] - pad[1, 1],
         pad[2, 0] : block.shape[-1] - pad[2, 1],
-    ]
-    return block
-
-
-def remove_boundary(
-    block: npt.NDArray,
-    pad: npt.NDArray[np.integer],
-    sigma: float,
-    truncate: float = 4.0,
-) -> npt.NDArray:
-    """Slices away the parts of the block affected by the boundary.
-
-    The goal here is to remove parts of the block that would be affected by
-    insufficient padding, e.g., near the edge of the original volume.
-    If the padding was sufficient to avoid boundary artifacts nothing is removed.
-    """
-
-    kernel_radius = int(sigma * truncate + 0.5)
-    boundary = np.maximum(0, kernel_radius - pad)
-    block = block[
-        boundary[0, 0] : block.shape[0] - boundary[0, 1],
-        boundary[1, 0] : block.shape[1] - boundary[1, 1],
-        boundary[2, 0] : block.shape[2] - boundary[2, 1],
     ]
     return block
 
