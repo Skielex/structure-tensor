@@ -257,6 +257,7 @@ def eig_special_3d(
         l = lib.einsum("ij,ij->j", vec, vec, out=vec_tmp)
 
     lib.sqrt(l, out=l)
+    lib.maximum(l, 1e-12, out=l) # prevent zero division
     vec /= l
 
     val = val.reshape(val.shape[:-1] + input_shape[1:])
